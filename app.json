@@ -3,6 +3,7 @@
     "name": "KJ Fitness",
     "slug": "kj-fitness-app",
     "version": "1.0.0",
+    "scheme": "kjfitness",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -25,6 +26,9 @@
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
-    }
+    },
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }

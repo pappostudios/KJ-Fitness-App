@@ -1,12 +1,19 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { colors } from './src/theme/colors';
-import ClientNavigator from './src/navigation/ClientNavigator';
 
-// Custom navigation theme — matches the dark KJ Fitness brand
+import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { colors } from './src/theme/colors';
+
+import AuthNavigator from './src/navigation/AuthNavigator';
+import ClientNavigator from './src/navigation/ClientNavigator';
+import CoachNavigator from './src/navigation/CoachNavigator';
+import PendingApprovalScreen from './src/screens/auth/PendingApprovalScreen';
+import RejectedScreen from './src/screens/auth/RejectedScreen';
+
+// Navigation theme — dark KJ Fitness brand
 const KJTheme = {
   ...DefaultTheme,
   dark: true,
@@ -21,22 +28,54 @@ const KJTheme = {
   },
 };
 
-export default function App() {
-  // TODO: Replace with Firebase Auth role check
-  // For now, hardcoded to show the client app
-  const userRole = 'client'; // will be 'coach' or 'client' from Firebase
+function RootNavigator() {
+  const { user, role, status, loading } = useAuth();
 
+  if (loading) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  // Not logged in
+  if (!user) return <AuthNavigator />;
+
+  // Coach
+  if (role === 'coach') return <CoachNavigator />;
+
+  // Client — check approval status
+  if (status === 'pending') return <PendingApprovalScreen />;
+  if (status === 'rejected') return <RejectedScreen />;
+  if (status === 'approved') return <ClientNavigator />;
+
+  // Fallback (status still loading from Firestore)
+  return (
+    <View style={styles.loading}>
+      <ActivityIndicator size="large" color={colors.primary} />
+    </View>
+  );
+}
+
+export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="light" backgroundColor={colors.background} />
-      <NavigationContainer theme={KJTheme}>
-        {userRole === 'client' ? (
-          <ClientNavigator />
-        ) : (
-          // Coach navigator will go here in the next phase
-          <ClientNavigator />
-        )}
-      </NavigationContainer>
+      <AuthProvider>
+        <NavigationContainer theme={KJTheme}>
+          <RootNavigator />
+        </NavigationContainer>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
