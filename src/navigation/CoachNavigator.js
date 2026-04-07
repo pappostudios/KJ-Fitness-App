@@ -3,8 +3,11 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import CoachHomeScreen from '../screens/coach/CoachHomeScreen';
 import ClientRequestsScreen from '../screens/coach/ClientRequestsScreen';
+import ScheduleScreen from '../screens/coach/ScheduleScreen';
+import CoachMessagesNavigator from './CoachMessagesNavigator';
+import CoachClientsNavigator from './CoachClientsNavigator';
+import CoachHomeNavigator from './CoachHomeNavigator';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 
@@ -30,11 +33,22 @@ const ICONS = {
 
 export default function CoachNavigator() {
   const [pendingCount, setPendingCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   // Live count of pending join requests
   useEffect(() => {
     const q = query(collection(db, 'pendingRequests'));
     const unsub = onSnapshot(q, (snap) => setPendingCount(snap.size));
+    return unsub;
+  }, []);
+
+  // Live total of unread messages across all conversations
+  useEffect(() => {
+    const q = query(collection(db, 'conversations'));
+    const unsub = onSnapshot(q, (snap) => {
+      const total = snap.docs.reduce((sum, d) => sum + (d.data().unreadByCoach ?? 0), 0);
+      setUnreadMessages(total);
+    });
     return unsub;
   }, []);
 
@@ -48,14 +62,18 @@ export default function CoachNavigator() {
         tabBarLabelStyle: styles.tabLabel,
         tabBarIcon: ({ focused }) => {
           const icon = ICONS[route.name] ?? '📌';
-          const showBadge = route.name === 'בקשות' && pendingCount > 0;
+          const showBadge =
+            (route.name === 'בקשות' && pendingCount > 0) ||
+            (route.name === 'הודעות' && unreadMessages > 0);
+          const badgeCount =
+            route.name === 'בקשות' ? pendingCount : unreadMessages;
           return (
             <View style={styles.iconWrap}>
               <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>{icon}</Text>
               {showBadge && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
-                    {pendingCount > 9 ? '9+' : pendingCount}
+                    {badgeCount > 9 ? '9+' : badgeCount}
                   </Text>
                 </View>
               )}
@@ -64,10 +82,10 @@ export default function CoachNavigator() {
         },
       })}
     >
-      <Tab.Screen name="בית" component={CoachHomeScreen} />
-      <Tab.Screen name="לקוחות" component={PlaceholderScreen} />
-      <Tab.Screen name="לוח זמנים" component={PlaceholderScreen} />
-      <Tab.Screen name="הודעות" component={PlaceholderScreen} />
+      <Tab.Screen name="בית" component={CoachHomeNavigator} />
+      <Tab.Screen name="לקוחות" component={CoachClientsNavigator} />
+      <Tab.Screen name="לוח זמנים" component={ScheduleScreen} />
+      <Tab.Screen name="הודעות" component={CoachMessagesNavigator} />
       <Tab.Screen name="בקשות" component={ClientRequestsScreen} />
     </Tab.Navigator>
   );

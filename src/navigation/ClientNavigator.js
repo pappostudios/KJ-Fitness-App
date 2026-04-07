@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 
-import HomeScreen from '../screens/client/HomeScreen';
+import ClientHomeNavigator from './ClientHomeNavigator';
 import BookScreen from '../screens/client/BookScreen';
 import ProgressScreen from '../screens/client/ProgressScreen';
 import LibraryScreen from '../screens/client/LibraryScreen';
@@ -16,10 +16,10 @@ const Tab = createBottomTabNavigator();
 const TABS = [
   {
     name: 'Home',
-    component: HomeScreen,
+    component: ClientHomeNavigator,
     icon: 'home',
     iconOutline: 'home-outline',
-    label: 'Home',
+    label: 'בית',
   },
   {
     name: 'Book',

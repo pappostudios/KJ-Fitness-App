@@ -31,26 +31,21 @@ import { sendPushNotification } from '../../utils/sendPushNotification';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
-// Each client has one conversation with the coach, keyed by the client's UID.
-
-export default function MessagesScreen() {
-  const { user, profile } = useAuth();
+export default function CoachChatScreen({ route, navigation }) {
+  const { clientId, clientName } = route.params;
+  const { user } = useAuth();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
-  const conversationId = user?.uid;
-
-  // ── Live messages (newest-first for inverted FlatList) ────────────────────
+  // ── Live messages + reset unread count for coach ──────────────────────────
   useEffect(() => {
-    if (!conversationId) return;
-
-    // Reset unread count for client when screen opens
-    setDoc(doc(db, 'conversations', conversationId), { unreadByClient: 0 }, { merge: true }).catch(() => {});
+    // Mark as read by coach when screen opens
+    setDoc(doc(db, 'conversations', clientId), { unreadByCoach: 0 }, { merge: true }).catch(() => {});
 
     const q = query(
-      collection(db, 'conversations', conversationId, 'messages'),
+      collection(db, 'conversations', clientId, 'messages'),
       orderBy('createdAt', 'desc')
     );
     const unsub = onSnapshot(q, (snap) => {
@@ -58,66 +53,70 @@ export default function MessagesScreen() {
       setLoading(false);
     });
     return unsub;
-  }, [conversationId]);
+  }, [clientId]);
 
-  // ── Send a message ────────────────────────────────────────────────────────
+  // ── Send a message as coach ───────────────────────────────────────────────
   const sendMessage = useCallback(async () => {
     const txt = text.trim();
     if (!txt || sending) return;
     setText('');
     setSending(true);
     try {
-      await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
+      await addDoc(collection(db, 'conversations', clientId, 'messages'), {
         senderId: user.uid,
-        senderName: profile?.name ?? user.email,
-        senderRole: 'client',
+        senderName: 'Kirsten',
+        senderRole: 'coach',
         text: txt,
         createdAt: serverTimestamp(),
       });
       await setDoc(
-        doc(db, 'conversations', conversationId),
+        doc(db, 'conversations', clientId),
         {
-          clientId: user.uid,
-          clientName: profile?.name ?? user.email,
           lastMessage: txt,
           lastMessageAt: serverTimestamp(),
-          unreadByCoach: increment(1),
-          unreadByClient: 0,
+          unreadByClient: increment(1),
+          unreadByCoach: 0,
         },
         { merge: true }
       );
 
-      // Notify coach
+      // Notify client
       try {
-        const settingsSnap = await getDoc(doc(db, 'settings', 'coach'));
-        const coachToken = settingsSnap.data()?.pushToken;
-        const senderName = profile?.name ?? user.email;
+        const clientSnap = await getDoc(doc(db, 'users', clientId));
+        const clientToken = clientSnap.data()?.pushToken;
         await sendPushNotification(
-          coachToken,
-          `💬 הודעה מ-${senderName}`,
+          clientToken,
+          '💬 הודעה מ-Kirsten',
           txt,
-          { screen: 'Messages', clientId: user.uid }
+          { screen: 'Messages' }
         );
       } catch (_) { /* push errors are non-fatal */ }
     } catch {
-      setText(txt); // restore on failure so the user doesn't lose their message
+      setText(txt);
     } finally {
       setSending(false);
     }
-  }, [text, sending, user, profile, conversationId]);
+  }, [text, sending, user, clientId]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
 
-      {/* Header */}
+      {/* Header with back button */}
       <LinearGradient colors={gradients.hero} style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>KJ</Text>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="chevron-back" size={24} color={colors.primary} />
+        </TouchableOpacity>
+        <View style={styles.clientAvatar}>
+          <Text style={styles.clientAvatarText}>{getInitials(clientName)}</Text>
         </View>
         <View style={styles.headerText}>
-          <Text style={styles.headerName}>Kirsten</Text>
-          <Text style={styles.headerSub}>המאמנת שלך</Text>
+          <Text style={styles.headerName}>{clientName}</Text>
+          <Text style={styles.headerSub}>לקוח/ה</Text>
         </View>
       </LinearGradient>
 
@@ -135,12 +134,16 @@ export default function MessagesScreen() {
             data={messages}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <MessageBubble message={item} isMe={item.senderRole === 'client'} />
+              <MessageBubble
+                message={item}
+                isMe={item.senderRole === 'coach'}
+                clientName={clientName}
+              />
             )}
             inverted
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
-            ListEmptyComponent={<EmptyChat />}
+            ListEmptyComponent={<EmptyChat clientName={clientName} />}
             keyboardDismissMode="interactive"
           />
         )}
@@ -181,7 +184,7 @@ export default function MessagesScreen() {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function MessageBubble({ message, isMe }) {
+function MessageBubble({ message, isMe, clientName }) {
   const time = message.createdAt?.toDate
     ? message.createdAt.toDate().toLocaleTimeString('he-IL', {
         hour: '2-digit',
@@ -193,7 +196,7 @@ function MessageBubble({ message, isMe }) {
     <View style={[styles.bubbleRow, isMe && styles.bubbleRowMe]}>
       {!isMe && (
         <View style={styles.avatarSmall}>
-          <Text style={styles.avatarSmallText}>KJ</Text>
+          <Text style={styles.avatarSmallText}>{getInitials(clientName)}</Text>
         </View>
       )}
       <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
@@ -208,15 +211,25 @@ function MessageBubble({ message, isMe }) {
   );
 }
 
-function EmptyChat() {
+function EmptyChat({ clientName }) {
   return (
-    // transform scaleY -1 counteracts the inverted FlatList
     <View style={styles.emptyWrap}>
-      <Text style={styles.emptyIcon}>💬</Text>
-      <Text style={styles.emptyTitle}>עוד אין הודעות</Text>
-      <Text style={styles.emptySub}>שלח הודעה ראשונה לקירסטן!</Text>
+      <Text style={styles.emptyIcon}>✉️</Text>
+      <Text style={styles.emptyTitle}>התחל שיחה</Text>
+      <Text style={styles.emptySub}>שלח הודעה ראשונה ל{clientName}</Text>
     </View>
   );
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function getInitials(name = '') {
+  return name
+    .split(' ')
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -232,25 +245,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 16,
     paddingBottom: 14,
-    paddingHorizontal: 20,
-    gap: 12,
+    paddingHorizontal: 16,
+    gap: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.primary,
+  backBtn: { padding: 4 },
+  clientAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primaryGlow,
+    borderWidth: 1,
+    borderColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { ...typography.label, color: '#fff' },
-  headerText: { gap: 2 },
+  clientAvatarText: { ...typography.label, color: colors.primary },
+  headerText: { flex: 1, gap: 1 },
   headerName: { ...typography.h4, color: colors.textPrimary },
   headerSub: { ...typography.bodySmall, color: colors.textSecondary },
 
-  // Message list
+  // List
   list: {
     paddingHorizontal: 12,
     paddingVertical: 16,
@@ -270,12 +286,14 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryGlow,
+    borderWidth: 1,
+    borderColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 2,
   },
-  avatarSmallText: { fontSize: 9, fontWeight: '800', color: '#fff' },
+  avatarSmallText: { fontSize: 9, fontWeight: '800', color: colors.primary },
   bubble: {
     maxWidth: '75%',
     borderRadius: 18,
@@ -304,7 +322,7 @@ const styles = StyleSheet.create({
   },
   bubbleTimeMe: { color: 'rgba(255,255,255,0.65)', textAlign: 'right' },
 
-  // Empty state (inverted, so we flip it back)
+  // Empty (inverted FlatList, so we flip it back)
   emptyWrap: {
     alignItems: 'center',
     paddingVertical: 60,

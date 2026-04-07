@@ -1,0 +1,128 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ────────────────────────────────────────────────────
+
+    // Must be signed in
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Kirsten is the coach — identified by her email(s)
+    function isCoach() {
+      return isAuth() && (
+        request.auth.token.email == 'pappostudios@gmail.com' ||
+        request.auth.token.email == 'kjfitness.info@gmail.com'
+      );
+    }
+
+    // Caller owns this document
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+
+    // ── Users ────────────────────────────────────────────────────────────────
+    // Clients can read/write their own profile; coach can read all profiles.
+    match /users/{uid} {
+      allow read:   if isOwner(uid) || isCoach();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isCoach();
+      allow delete: if isCoach();
+    }
+
+    // ── Pending join requests ────────────────────────────────────────────────
+    // Coach reads and deletes; client creates their own request.
+    match /pendingRequests/{uid} {
+      allow read:   if isCoach();
+      allow create: if isOwner(uid);
+      allow delete: if isCoach();
+    }
+
+    // ── Time slots ───────────────────────────────────────────────────────────
+    // Coach creates/deletes slots; any authenticated user can read.
+    // Clients update a slot inside a transaction when booking (sets isBooked).
+    match /slots/{slotId} {
+      allow read:   if isAuth();
+      allow create: if isCoach();
+      allow update: if isAuth();  // transaction-based booking by clients
+      allow delete: if isCoach();
+    }
+
+    // ── Bookings ─────────────────────────────────────────────────────────────
+    // Coach can read/update all bookings (e.g. mark as paid).
+    // Clients can read and create their own; can also update paymentStatus.
+    match /bookings/{bookingId} {
+      allow read:   if isCoach() ||
+                       (isAuth() && resource.data.clientId == request.auth.uid);
+      allow create: if isAuth();
+      allow update: if isCoach() ||
+                       (isAuth() && resource.data.clientId == request.auth.uid);
+      allow delete: if isCoach();
+    }
+
+    // ── Conversations ─────────────────────────────────────────────────────────
+    // Coach can read all; clients can read/update their own conversation.
+    match /conversations/{convId} {
+      allow read:   if isCoach() ||
+                       (isAuth() && resource.data.clientId == request.auth.uid);
+      allow create: if isAuth();
+      allow update: if isCoach() ||
+                       (isAuth() && resource.data.clientId == request.auth.uid);
+      allow delete: if isCoach();
+
+      // Messages are a subcollection of conversations.
+      // Any authenticated participant in the parent conversation can read/write.
+      match /messages/{msgId} {
+        allow read:   if isCoach() ||
+                         (isAuth() &&
+                          get(/databases/$(database)/documents/conversations/$(convId)).data.clientId
+                          == request.auth.uid);
+        allow create: if isAuth();
+        allow delete: if isCoach();
+      }
+    }
+
+    // ── Library (workout content, videos, articles) ──────────────────────────
+    // Coach can read/write all; clients can only read published items.
+    match /library/{itemId} {
+      allow read:   if isCoach() ||
+                       (isAuth() && resource.data.isPublished == true);
+      allow create: if isCoach();
+      allow update: if isCoach();
+      allow delete: if isCoach();
+    }
+
+    // ── Progress (client workout/measurement logs) ────────────────────────────
+    // Coach can read all; clients can read/write their own entries.
+    match /progress/{entryId} {
+      allow read:   if isCoach() ||
+                       (isAuth() && resource.data.clientId == request.auth.uid);
+      allow create: if isAuth();
+      allow update: if isCoach() ||
+                       (isAuth() && resource.data.clientId == request.auth.uid);
+      allow delete: if isCoach() ||
+                       (isAuth() && resource.data.clientId == request.auth.uid);
+    }
+
+    // ── Settings (coach-global config: Bit link, session price) ─────────────
+    // All authenticated users can read (needed for the SessionCard & BookScreen).
+    // Only the coach can write.
+    match /settings/{docId} {
+      allow read:  if isAuth();
+      allow write: if isCoach();
+    }
+
+    // ── Weekly Plans ─────────────────────────────────────────────────────────
+    // All authenticated users can read published plans.
+    // Only the coach can create/update/delete.
+    match /weeklyPlans/{planId} {
+      allow read:   if isAuth();
+      allow create: if isCoach();
+      allow update: if isCoach();
+      allow delete: if isCoach();
+    }
+
+  }
+}

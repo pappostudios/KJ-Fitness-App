@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,22 +11,54 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
 import { useAuth } from '../../context/AuthContext';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
+WebBrowser.maybeCompleteAuthSession();
+
+const GOOGLE_WEB_CLIENT_ID = '525333297888-d1h242a2i5dvj4tag6ib924oc0s836rh.apps.googleusercontent.com';
+const REDIRECT_URI = 'https://auth.expo.io/@PappoStudios/kj-fitness-app';
+
 export default function SignUpScreen({ navigation }) {
-  const { signUp, error, setError } = useAuth();
+  const { signUp, signInWithGoogle, error, setError } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Google OAuth
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    androidClientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: GOOGLE_WEB_CLIENT_ID,
+    redirectUri: REDIRECT_URI,
+  });
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      setGoogleLoading(true);
+      signInWithGoogle(id_token).finally(() => setGoogleLoading(false));
+    } else if (response?.type === 'error') {
+      setError('שגיאה בהתחברות עם Google. נסה שוב.');
+      setGoogleLoading(false);
+    }
+  }, [response]);
+
+  const handleGoogle = () => {
+    setError(null);
+    setGoogleLoading(true);
+    promptAsync();
+  };
 
   const handleSignUp = async () => {
     setError(null);
-
     if (!name.trim()) return setError('נא להזין שם מלא.');
     if (!email.trim()) return setError('נא להזין כתובת אימייל.');
     if (password.length < 6) return setError('הסיסמה חייבת להכיל לפחות 6 תווים.');
@@ -35,7 +67,6 @@ export default function SignUpScreen({ navigation }) {
     setLoading(true);
     try {
       await signUp(email, password, name.trim());
-      // Navigation to PendingApproval happens via auth state in App.js
     } catch {
       // error set in context
     } finally {
@@ -70,6 +101,30 @@ export default function SignUpScreen({ navigation }) {
         {/* Form card */}
         <View style={styles.card}>
           <Text style={styles.title}>יצירת חשבון</Text>
+
+          {/* Google sign-up button */}
+          <TouchableOpacity
+            style={styles.googleButton}
+            onPress={handleGoogle}
+            disabled={!request || googleLoading || loading}
+            activeOpacity={0.85}
+          >
+            {googleLoading ? (
+              <ActivityIndicator color={colors.textPrimary} />
+            ) : (
+              <>
+                <Text style={styles.googleIcon}>G</Text>
+                <Text style={styles.googleText}>הרשמה עם Google</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* Divider */}
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>או הרשמה עם אימייל</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
           {/* Full name */}
           <View style={styles.inputGroup}>
@@ -155,7 +210,7 @@ export default function SignUpScreen({ navigation }) {
           <TouchableOpacity
             style={styles.submitButton}
             onPress={handleSignUp}
-            disabled={loading}
+            disabled={loading || googleLoading}
             activeOpacity={0.85}
           >
             <LinearGradient colors={gradients.primary} style={styles.submitGradient}>
@@ -226,6 +281,52 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 4,
   },
+
+  // Google button
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  googleIcon: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#4285F4',
+    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif' }),
+  },
+  googleText: {
+    ...typography.button,
+    color: '#3c3c3c',
+    fontSize: 15,
+  },
+
+  // Divider
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    flexShrink: 1,
+  },
+
   inputGroup: { gap: 6 },
   label: { ...typography.label, color: colors.textSecondary },
   input: {

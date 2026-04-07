@@ -22,7 +22,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 // ── Get this from: Firebase Console → Authentication → Sign-in method
 //    → Google → Web SDK configuration → Web client ID
-const GOOGLE_WEB_CLIENT_ID = 'YOUR_GOOG525333297888-d1h242a2i5dvj4tag6ib924oc0s836rh.apps.googleusercontent.comLE_WEB_CLIENT_ID';
+const GOOGLE_WEB_CLIENT_ID = '525333297888-d1h242a2i5dvj4tag6ib924oc0s836rh.apps.googleusercontent.com';
 
 export default function LoginScreen({ navigation }) {
   const { signIn, signInWithGoogle, error, setError } = useAuth();
@@ -33,10 +33,22 @@ export default function LoginScreen({ navigation }) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Force Expo proxy as redirect URI (required for Expo Go — local IPs don't work with Google)
+  const REDIRECT_URI = 'https://auth.expo.io/@PappoStudios/kj-fitness-app';
+
   // Google OAuth request
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
+    androidClientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: GOOGLE_WEB_CLIENT_ID,
+    redirectUri: REDIRECT_URI,
   });
+
+  useEffect(() => {
+    if (request?.redirectUri) {
+      console.log('🔑 REDIRECT URI:', request.redirectUri);
+    }
+  }, [request]);
 
   // Handle Google response
   useEffect(() => {
