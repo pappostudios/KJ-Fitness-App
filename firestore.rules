@@ -63,17 +63,18 @@ service cloud.firestore {
     }
 
     // ── Conversations ─────────────────────────────────────────────────────────
-    // Coach can read all; clients can read/update their own conversation.
+    // Coach can read/list all; clients can read/update their own conversation.
     match /conversations/{convId} {
-      allow read:   if isCoach() ||
+      // Coach can list the entire collection (no resource.data needed for list)
+      allow list:   if isCoach();
+      allow get:    if isCoach() ||
                        (isAuth() && resource.data.clientId == request.auth.uid);
       allow create: if isAuth();
       allow update: if isCoach() ||
                        (isAuth() && resource.data.clientId == request.auth.uid);
       allow delete: if isCoach();
 
-      // Messages are a subcollection of conversations.
-      // Any authenticated participant in the parent conversation can read/write.
+      // Messages subcollection
       match /messages/{msgId} {
         allow read:   if isCoach() ||
                          (isAuth() &&
