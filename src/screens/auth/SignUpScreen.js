@@ -10,6 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,7 +52,14 @@ export default function SignUpScreen({ navigation }) {
       await signInWithGoogle(idToken, null, true); // true = create profile if new
     } catch (e) {
       if (e.code !== statusCodes.SIGN_IN_CANCELLED) {
-        setError && setError('Google sign-in failed. Please try again.');
+        const code = e.code ?? 'no code';
+        const msg = e.message ?? 'no message';
+        Alert.alert(
+          `Google Sign-In Error (code: ${code})`,
+          msg,
+          [{ text: 'OK' }]
+        );
+        setError && setError(`Google sign-in failed (code ${code}). Please try again.`);
       }
     } finally {
       setGoogleLoading(false);
