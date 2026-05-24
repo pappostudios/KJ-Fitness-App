@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   collection, query, orderBy, onSnapshot,
-  addDoc, serverTimestamp,
+  addDoc, setDoc, doc, serverTimestamp, increment,
 } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
@@ -51,41 +51,59 @@ export default function MessagesScreen() {
   const [loading, setLoading] = useState(true);
   const flatListRef = useRef(null);
 
-  const threadId = user?.uid ? `thread_${user.uid}` : null;
+  // Use the client's uid directly — same path the coach reads from
+  const conversationId = user?.uid ?? null;
 
   useEffect(() => {
-    if (!threadId) return;
+    if (!conversationId) return;
     const q = query(
-      collection(db, 'threads', threadId, 'messages'),
+      collection(db, 'conversations', conversationId, 'messages'),
       orderBy('createdAt', 'asc'),
     );
     return onSnapshot(q, (snap) => {
       setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
-  }, [threadId]);
+  }, [conversationId]);
 
   const send = async () => {
     const trimmed = text.trim();
-    if (!trimmed || sending || !threadId) return;
+    if (!trimmed || sending || !conversationId) return;
     setText('');
     setSending(true);
     try {
-      await addDoc(collection(db, 'threads', threadId, 'messages'), {
+      // 1. Add message to the shared conversation path
+      await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
         text: trimmed,
         senderId: user.uid,
         senderEmail: user.email,
+        senderRole: 'client',
         createdAt: serverTimestamp(),
       });
+
+      // 2. Update conversation doc so it shows up in coach's list
+      const clientName = profile?.name || user?.displayName || user?.email || 'Client';
+      await setDoc(
+        doc(db, 'conversations', conversationId),
+        {
+          clientId: user.uid,
+          clientName,
+          lastMessage: trimmed,
+          lastMessageAt: serverTimestamp(),
+          unreadByCoach: increment(1),
+        },
+        { merge: true },
+      );
     } catch (e) {
       console.warn('Send error', e);
+      setText(trimmed); // restore on failure
     } finally {
       setSending(false);
     }
   };
 
   const isCoachMsg = (msg) =>
-    msg.senderEmail === COACH_EMAIL || msg.senderId === 'coach';
+    msg.senderRole === 'coach' || msg.senderEmail === COACH_EMAIL;
 
   const displayName = profile?.name || user?.displayName || '';
   const clientInitials = displayName
