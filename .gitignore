@@ -18,6 +18,15 @@ web-build/
 setup-github.sh
 setup-github.ps1
 
-# Firebase secrets
-google-services.json
-GoogleService-Info.plist
+# Android build artifacts (large, auto-generated — not needed in git or EAS)
+android/app/build/
+android/build/
+android/.gradle/
+android/.idea/
+
+# Note: google-services.json and GoogleService-Info.plist are intentionally
+# committed so EAS Build can find them. The values they contain are embedded
+# in every compiled APK/IPA anyway, so keeping them out of source-control
+# provides no real security benefit.
+# google-services.json      ← removed from gitignore
+# GoogleService-Info.plist  ← removed from gitignore

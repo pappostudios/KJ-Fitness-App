@@ -1,0 +1,13 @@
+# EAS Build — files/dirs to exclude from the project archive
+# (reduces upload size and avoids uploading stale local build artifacts)
+
+android/app/build/
+android/build/
+android/.gradle/
+android/.idea/
+
+# Already gitignored but listed here as a safety net
+node_modules/
+.expo/
+dist/
+web-build/
