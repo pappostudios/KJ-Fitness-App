@@ -24,6 +24,8 @@ android/build/
 android/.gradle/
 android/.idea/
 
-# Firebase config — kept out of git, injected via EAS secrets at build time
-google-services.json
-GoogleService-Info.plist
+# Firebase config:
+# google-services.json is committed (API key is restricted to this app's
+# package name + SHA-1 fingerprints, so it is safe in source control).
+# GoogleService-Info.plist would be committed the same way if iOS is added.
+# GoogleService-Info.plist
