@@ -1,77 +1,63 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  ActivityIndicator,
-  StyleSheet,
+  View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-} from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { colors, gradients } from '../../theme/colors';
-import { typography } from '../../theme/typography';
+import { colors, gradients, dark } from '../../theme/colors';
+
+function Eyebrow({ children, style }) {
+  return <Text style={[styles.eyebrow, style]}>{children}</Text>;
+}
 
 export default function ConversationsScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ── Live: all conversations ordered by most recent ────────────────────────
   useEffect(() => {
-    const q = query(
-      collection(db, 'conversations'),
-      orderBy('lastMessageAt', 'desc')
-    );
-    const unsub = onSnapshot(q, (snap) => {
+    const q = query(collection(db, 'conversations'), orderBy('lastMessageAt', 'desc'));
+    return onSnapshot(q, (snap) => {
       setConversations(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
-    return unsub;
   }, []);
 
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadByCoach ?? 0), 0);
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
 
       {/* Header */}
-      <LinearGradient colors={gradients.hero} style={styles.header}>
+      <View style={styles.header}>
+        <Eyebrow>MESSAGES</Eyebrow>
         <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.headerTitle}>הודעות</Text>
-            {totalUnread > 0 ? (
-              <Text style={styles.headerSub}>{totalUnread} הודעות חדשות</Text>
-            ) : (
-              <Text style={styles.headerSub}>{conversations.length} שיחות</Text>
-            )}
-          </View>
+          <Text style={styles.headerTitle}>Conversations</Text>
           {totalUnread > 0 && (
-            <View style={styles.totalBadge}>
-              <Text style={styles.totalBadgeText}>{totalUnread}</Text>
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadBadgeText}>{totalUnread}</Text>
             </View>
           )}
         </View>
-      </LinearGradient>
+        <Text style={styles.headerSub}>
+          {totalUnread > 0 ? `${totalUnread} unread` : `${conversations.length} conversations`}
+        </Text>
+      </View>
 
-      {/* List */}
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} size="large" />
+          <ActivityIndicator color={colors.accent} size="large" />
         </View>
       ) : conversations.length === 0 ? (
         <View style={styles.center}>
-          <Text style={styles.emptyIcon}>💬</Text>
-          <Text style={styles.emptyTitle}>אין שיחות עדיין</Text>
-          <Text style={styles.emptySub}>הלקוחות ישלחו הודעות מהאפליקציה</Text>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="chatbubbles-outline" size={28} color={colors.textMuted} />
+          </View>
+          <Text style={styles.emptyTitle}>No conversations yet</Text>
+          <Text style={styles.emptySub}>Client messages will appear here</Text>
         </View>
       ) : (
         <FlatList
@@ -83,7 +69,7 @@ export default function ConversationsScreen({ navigation }) {
               onPress={() =>
                 navigation.navigate('CoachChat', {
                   clientId: item.clientId,
-                  clientName: item.clientName ?? 'לקוח',
+                  clientName: item.clientName ?? 'Client',
                 })
               }
             />
@@ -97,32 +83,35 @@ export default function ConversationsScreen({ navigation }) {
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
 function ConversationRow({ conversation, onPress }) {
   const { clientName, lastMessage, lastMessageAt, unreadByCoach } = conversation;
   const hasUnread = (unreadByCoach ?? 0) > 0;
-
-  const timeStr = lastMessageAt?.toDate
-    ? formatTime(lastMessageAt.toDate())
-    : '';
-
+  const timeStr = lastMessageAt?.toDate ? formatTime(lastMessageAt.toDate()) : '';
   const initials = getInitials(clientName ?? '?');
 
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
       {/* Avatar */}
-      <View style={[styles.rowAvatar, hasUnread && styles.rowAvatarActive]}>
-        <Text style={styles.rowAvatarText}>{initials}</Text>
-      </View>
+      {hasUnread ? (
+        <LinearGradient
+          colors={gradients.avatar}
+          style={styles.rowAvatar}
+        >
+          <Text style={styles.rowAvatarText}>{initials}</Text>
+        </LinearGradient>
+      ) : (
+        <View style={[styles.rowAvatar, styles.rowAvatarInactive]}>
+          <Text style={[styles.rowAvatarText, { color: colors.textMuted }]}>{initials}</Text>
+        </View>
+      )}
 
       {/* Text */}
       <View style={styles.rowContent}>
         <View style={styles.rowTopLine}>
           <Text style={[styles.rowName, hasUnread && styles.rowNameUnread]} numberOfLines={1}>
-            {clientName ?? 'לקוח'}
+            {clientName ?? 'Client'}
           </Text>
-          <Text style={[styles.rowTime, hasUnread && styles.rowTimeUnread]}>
+          <Text style={[styles.rowTime, hasUnread && { color: colors.accent }]}>
             {timeStr}
           </Text>
         </View>
@@ -134,8 +123,8 @@ function ConversationRow({ conversation, onPress }) {
             {lastMessage ?? '...'}
           </Text>
           {hasUnread && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>
                 {unreadByCoach > 9 ? '9+' : unreadByCoach}
               </Text>
             </View>
@@ -143,20 +132,13 @@ function ConversationRow({ conversation, onPress }) {
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={styles.chevron} />
+      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
     </TouchableOpacity>
   );
 }
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
-
 function getInitials(name) {
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
+  return name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
 function formatTime(date) {
@@ -165,83 +147,62 @@ function formatTime(date) {
     date.getDate() === now.getDate() &&
     date.getMonth() === now.getMonth() &&
     date.getFullYear() === now.getFullYear();
-  if (isToday) {
-    return date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-  }
-  return date.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' });
+  if (isToday) return date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safeArea: { flex: 1, backgroundColor: dark.bg0 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   list: { paddingVertical: 8 },
 
-  // Header
-  header: { paddingTop: 20, paddingBottom: 20, paddingHorizontal: 20 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { ...typography.h2, color: colors.textPrimary },
-  headerSub: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 4 },
-  totalBadge: {
-    backgroundColor: colors.error,
-    borderRadius: 14,
-    minWidth: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
+  eyebrow: {
+    fontFamily: 'Sora-SemiBold', fontSize: 10.5, letterSpacing: 1.89,
+    textTransform: 'uppercase', color: colors.textMuted,
   },
-  totalBadgeText: { ...typography.label, color: '#fff', fontSize: 12 },
 
-  // Empty
-  emptyIcon: { fontSize: 48 },
-  emptyTitle: { ...typography.h3, color: colors.textSecondary },
-  emptySub: { ...typography.bodySmall, color: colors.textMuted, textAlign: 'center' },
+  header: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  headerTitle: { fontFamily: 'Sora-Bold', fontSize: 28, color: colors.textPrimary },
+  headerSub: { fontFamily: 'Sora-Regular', fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  unreadBadge: {
+    backgroundColor: colors.error, borderRadius: 12,
+    minWidth: 24, height: 24, alignItems: 'center',
+    justifyContent: 'center', paddingHorizontal: 7,
+  },
+  unreadBadgeText: { fontFamily: 'Sora-Bold', fontSize: 11, color: '#fff' },
 
-  // Row
+  emptyIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: dark.bg2, alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  emptyTitle: { fontFamily: 'Sora-SemiBold', fontSize: 15, color: colors.textSecondary },
+  emptySub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, textAlign: 'center' },
+
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 14, gap: 14,
   },
   rowAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 46, height: 46, borderRadius: 23,
+    alignItems: 'center', justifyContent: 'center',
   },
-  rowAvatarActive: {
-    backgroundColor: colors.primaryGlow,
-    borderColor: colors.primary,
-  },
-  rowAvatarText: { ...typography.label, color: colors.textPrimary },
+  rowAvatarInactive: { backgroundColor: dark.bg2, borderWidth: 1, borderColor: dark.lineSoft },
+  rowAvatarText: { fontFamily: 'Sora-Bold', fontSize: 16, color: '#fff' },
+
   rowContent: { flex: 1, gap: 4 },
   rowTopLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rowName: { ...typography.h4, color: colors.textPrimary },
-  rowNameUnread: { color: colors.primary },
-  rowTime: { ...typography.caption, color: colors.textMuted },
-  rowTimeUnread: { color: colors.primary },
+  rowName: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },
+  rowNameUnread: { color: colors.textPrimary },
+  rowTime: { fontFamily: 'Sora-Regular', fontSize: 11, color: colors.textMuted },
   rowBottomLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rowPreview: { ...typography.bodySmall, color: colors.textSecondary, flex: 1 },
-  rowPreviewUnread: { color: colors.textPrimary, fontWeight: '600' },
-  unreadBadge: {
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-    marginLeft: 8,
+  rowPreview: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, flex: 1 },
+  rowPreviewUnread: { color: colors.textSecondary, fontFamily: 'Sora-SemiBold' },
+  countBadge: {
+    backgroundColor: colors.accent, borderRadius: 10,
+    minWidth: 20, height: 20, alignItems: 'center',
+    justifyContent: 'center', paddingHorizontal: 5, marginLeft: 8,
   },
-  unreadBadgeText: { fontSize: 11, fontWeight: '700', color: '#fff' },
-  chevron: { marginLeft: 4 },
-  separator: { height: 1, backgroundColor: colors.divider, marginLeft: 74 },
+  countBadgeText: { fontFamily: 'Sora-Bold', fontSize: 11, color: '#fff' },
+  separator: { height: 1, backgroundColor: dark.lineSoft, marginLeft: 80 },
 });

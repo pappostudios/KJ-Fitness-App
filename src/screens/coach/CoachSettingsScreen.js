@@ -1,44 +1,30 @@
-/**
- * CoachSettingsScreen
- *
- * Lets the coach configure:
- *   - Their Bit payment link  (e.g. https://bit.me/kjfitness)
- *   - Default session price   (displayed to clients on booking + SessionCard)
- *
- * Data is saved to Firestore: `settings/coach`
- * and read app-wide via the `useCoachSettings` hook.
- */
-
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  StyleSheet,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
+  View, Text, TextInput, TouchableOpacity, ScrollView,
+  ActivityIndicator, StyleSheet, Alert, KeyboardAvoidingView, Platform, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { doc, setDoc } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useCoachSettings } from '../../hooks/useCoachSettings';
-import { colors, gradients } from '../../theme/colors';
-import { typography } from '../../theme/typography';
+import { colors, gradients, dark } from '../../theme/colors';
+
+function Eyebrow({ children, accent, style }) {
+  return (
+    <Text style={[styles.eyebrow, accent && { color: colors.accent }, style]}>
+      {children}
+    </Text>
+  );
+}
 
 export default function CoachSettingsScreen({ navigation }) {
   const { settings, loading } = useCoachSettings();
-
   const [bitLink, setBitLink] = useState('');
   const [sessionPrice, setSessionPrice] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Pre-fill fields once settings load
   useEffect(() => {
     if (!loading) {
       setBitLink(settings.bitLink || '');
@@ -49,23 +35,21 @@ export default function CoachSettingsScreen({ navigation }) {
   const handleSave = async () => {
     const trimmedLink = bitLink.trim();
     const trimmedPrice = sessionPrice.trim();
-
     if (trimmedLink && !trimmedLink.startsWith('http')) {
-      Alert.alert('קישור לא תקין', 'הקישור חייב להתחיל ב-https://\nלדוגמה: https://bit.me/kjfitness');
+      Alert.alert('Invalid Link', 'The link must start with https://\nExample: https://bit.me/kjfitness');
       return;
     }
-
     setSaving(true);
     try {
       await setDoc(
         doc(db, 'settings', 'coach'),
         { bitLink: trimmedLink, sessionPrice: trimmedPrice },
-        { merge: true }
+        { merge: true },
       );
-      Alert.alert('נשמר בהצלחה ✓', 'ההגדרות עודכנו.');
+      Alert.alert('Saved', 'Settings updated successfully.');
       navigation.goBack();
     } catch {
-      Alert.alert('שגיאה', 'לא הצלחנו לשמור. נסה שוב.');
+      Alert.alert('Error', 'Could not save. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -73,20 +57,18 @@ export default function CoachSettingsScreen({ navigation }) {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} size="large" />
+          <ActivityIndicator color={colors.accent} size="large" />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.content}
@@ -95,12 +77,12 @@ export default function CoachSettingsScreen({ navigation }) {
         >
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-              <Ionicons name="chevron-back" size={24} color={colors.primary} />
+            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+              <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle}>הגדרות תשלום</Text>
-              <Text style={styles.headerSub}>הגדר את קישור Bit ומחיר האימון</Text>
+              <Eyebrow>SETTINGS</Eyebrow>
+              <Text style={styles.headerTitle}>Payment</Text>
             </View>
           </View>
 
@@ -108,11 +90,11 @@ export default function CoachSettingsScreen({ navigation }) {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardIconWrap}>
-                <Text style={styles.cardEmoji}>💙</Text>
+                <Ionicons name="link-outline" size={20} color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>קישור Bit</Text>
-                <Text style={styles.cardSub}>הלקוחות יופנו לקישור זה לתשלום</Text>
+                <Text style={styles.cardTitle}>Bit Payment Link</Text>
+                <Text style={styles.cardSub}>Clients will be directed here to pay</Text>
               </View>
             </View>
             <TextInput
@@ -126,20 +108,21 @@ export default function CoachSettingsScreen({ navigation }) {
               keyboardType="url"
               returnKeyType="done"
             />
-            <Text style={styles.hint}>
-              פתחי את אפליקציית Bit ← פרופיל ← שתפי קישור אישי
-            </Text>
+            <View style={styles.hint}>
+              <Ionicons name="information-circle-outline" size={13} color={colors.textMuted} />
+              <Text style={styles.hintText}>Open the Bit app → Profile → Share personal link</Text>
+            </View>
           </View>
 
           {/* Session price card */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardIconWrap}>
-                <Ionicons name="cash-outline" size={20} color={colors.primary} />
+                <Ionicons name="cash-outline" size={20} color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>מחיר אימון (₪)</Text>
-                <Text style={styles.cardSub}>יוצג ללקוחות בעת הזמנה ותשלום</Text>
+                <Text style={styles.cardTitle}>Session Price (₪)</Text>
+                <Text style={styles.cardSub}>Shown to clients when booking</Text>
               </View>
             </View>
             <TextInput
@@ -156,9 +139,9 @@ export default function CoachSettingsScreen({ navigation }) {
 
           {/* Info box */}
           <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={18} color={colors.primary} style={{ marginTop: 1 }} />
+            <Ionicons name="notifications-outline" size={16} color={colors.accent} style={{ marginTop: 1 }} />
             <Text style={styles.infoText}>
-              לאחר שהלקוח ישלם בBit, סמן את ההזמנה כ"שולמה" מלשונית הזמנות בלוח הזמנים.
+              After a client pays via Bit, mark the booking as paid from the schedule tab.
             </Text>
           </View>
 
@@ -170,15 +153,14 @@ export default function CoachSettingsScreen({ navigation }) {
             activeOpacity={0.85}
           >
             <LinearGradient colors={gradients.primary} style={styles.saveBtnGradient}>
-              {saving
-                ? <ActivityIndicator color="#fff" />
-                : (
-                  <View style={styles.saveBtnInner}>
-                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                    <Text style={styles.saveBtnText}>שמור הגדרות</Text>
-                  </View>
-                )
-              }
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <View style={styles.saveBtnInner}>
+                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                  <Text style={styles.saveBtnText}>Save Settings</Text>
+                </View>
+              )}
             </LinearGradient>
           </TouchableOpacity>
 
@@ -189,89 +171,56 @@ export default function CoachSettingsScreen({ navigation }) {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safeArea: { flex: 1, backgroundColor: dark.bg0 },
   scroll: { flex: 1 },
   content: { padding: 20, gap: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  // Header
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  eyebrow: {
+    fontFamily: 'Sora-SemiBold', fontSize: 10.5, letterSpacing: 1.89,
+    textTransform: 'uppercase', color: colors.textMuted,
+  },
+
+  header: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 4 },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 38, height: 38, borderRadius: 11,
+    backgroundColor: dark.bg2, borderWidth: 1, borderColor: dark.lineSoft,
+    justifyContent: 'center', alignItems: 'center',
   },
-  headerTitle: { ...typography.h3, color: colors.textPrimary },
-  headerSub: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
+  headerTitle: { fontFamily: 'Sora-Bold', fontSize: 26, color: colors.textPrimary, marginTop: 2 },
 
-  // Cards
   card: {
-    backgroundColor: colors.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    padding: 18,
-    gap: 12,
+    backgroundColor: dark.bg1, borderRadius: 18,
+    borderWidth: 1, borderColor: dark.lineSoft, padding: 18, gap: 14,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   cardIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: colors.primaryGlow,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(229,57,53,0.12)', borderWidth: 1,
+    borderColor: 'rgba(229,57,53,0.25)', justifyContent: 'center', alignItems: 'center',
   },
-  cardEmoji: { fontSize: 20 },
-  cardTitle: { ...typography.h4, color: colors.textPrimary },
-  cardSub: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  cardTitle: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },
+  cardSub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, marginTop: 2 },
 
-  // Input
   input: {
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    ...typography.body,
-    color: colors.textPrimary,
+    backgroundColor: dark.bg2, borderRadius: 14,
+    borderWidth: 1, borderColor: dark.line,
+    paddingHorizontal: 16, paddingVertical: 14,
+    fontFamily: 'Sora-Regular', fontSize: 14, color: colors.textPrimary,
   },
-  hint: {
-    ...typography.caption,
-    color: colors.textMuted,
-    marginTop: -4,
-  },
+  hint: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  hintText: { fontFamily: 'Sora-Regular', fontSize: 11.5, color: colors.textMuted, flex: 1 },
 
-  // Info box
   infoBox: {
-    flexDirection: 'row',
-    gap: 10,
-    backgroundColor: colors.primaryGlow,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.accentSoft,
-    padding: 14,
-    alignItems: 'flex-start',
+    flexDirection: 'row', gap: 10, alignItems: 'flex-start',
+    backgroundColor: 'rgba(229,57,53,0.08)', borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(229,57,53,0.2)', padding: 14,
   },
-  infoText: {
-    ...typography.bodySmall,
-    color: colors.textSecondary,
-    flex: 1,
-    lineHeight: 20,
-  },
+  infoText: { fontFamily: 'Sora-Regular', fontSize: 12.5, color: colors.textSecondary, flex: 1, lineHeight: 19 },
 
-  // Save button
-  saveBtn: { borderRadius: 16, overflow: 'hidden', marginTop: 8 },
+  saveBtn: { borderRadius: 16, overflow: 'hidden', marginTop: 4 },
   saveBtnGradient: { padding: 16, alignItems: 'center' },
   saveBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  saveBtnText: { ...typography.button, color: '#fff' },
+  saveBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 15, color: '#fff' },
 });

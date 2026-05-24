@@ -18,14 +18,13 @@ import { useAuth } from '../../context/AuthContext';
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
-const WEB_CLIENT_ID     = '525333297888-d1h242a2i5dvj4tag6ib924oc0s836rh.apps.googleusercontent.com';
-const ANDROID_CLIENT_ID = '525333297888-nmevu9b4vpjur32c4eqepvdt6nstes2g.apps.googleusercontent.com';
+const WEB_CLIENT_ID = '525333297888-d1h242a2i5dvj4tag6ib924oc0s836rh.apps.googleusercontent.com';
 
 // GoogleSignin is already configured in LoginScreen at module level,
 // but configure here too in case SignUp is reached without visiting Login.
+// Note: androidClientId is NOT a valid option — Android ID is read from google-services.json automatically.
 GoogleSignin.configure({
   webClientId: WEB_CLIENT_ID,
-  androidClientId: ANDROID_CLIENT_ID,
   offlineAccess: true,
 });
 

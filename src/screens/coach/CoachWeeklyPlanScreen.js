@@ -1,62 +1,30 @@
-/**
- * CoachWeeklyPlanScreen
- *
- * Coach creates and publishes a weekly training plan.
- * Each plan contains:
- *   - Up to 7 day slots (workout name per day, or "מנוחה")
- *   - A nutrition tip
- *   - A weekly insight / motivation quote
- *
- * On publish:
- *   - Saved to Firestore `weeklyPlans/` collection
- *   - All approved clients receive a push notification
- */
-
 import React, { useState, useCallback } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  StyleSheet,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
+  View, Text, TextInput, TouchableOpacity, ScrollView,
+  ActivityIndicator, StyleSheet, Alert, KeyboardAvoidingView, Platform, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  collection,
-  addDoc,
-  getDocs,
-  query,
-  where,
-  serverTimestamp,
-} from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
+import {
+  collection, addDoc, getDocs, query, where, serverTimestamp,
+} from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { colors, gradients } from '../../theme/colors';
-import { typography } from '../../theme/typography';
+import { colors, gradients, dark } from '../../theme/colors';
 import { sendPushNotificationToMany } from '../../utils/sendPushNotification';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-const DAY_SHORT = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_SHORT = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 function getWeekLabel() {
   const today = new Date();
-  // Find this Monday (or next if today is Sun)
-  const day = today.getDay(); // 0=Sun
+  const day = today.getDay();
   const diff = day === 0 ? 1 : 1 - day;
   const monday = new Date(today);
   monday.setDate(today.getDate() + diff);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
-  const fmt = (d) =>
-    d.toLocaleDateString('he-IL', { day: 'numeric', month: 'long' });
+  const fmt = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
   return `${fmt(monday)} – ${fmt(sunday)}`;
 }
 
@@ -69,11 +37,17 @@ function getMondayISO() {
   return monday.toISOString().split('T')[0];
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+function Eyebrow({ children, accent, style }) {
+  return (
+    <Text style={[styles.eyebrow, accent && { color: colors.accent }, style]}>
+      {children}
+    </Text>
+  );
+}
 
 export default function CoachWeeklyPlanScreen({ navigation }) {
   const [workouts, setWorkouts] = useState(
-    DAYS.map((day, i) => ({ day, short: DAY_SHORT[i], name: '' }))
+    DAYS.map((day, i) => ({ day, short: DAY_SHORT[i], name: '' })),
   );
   const [nutritionTip, setNutritionTip] = useState('');
   const [insight, setInsight] = useState('');
@@ -89,24 +63,20 @@ export default function CoachWeeklyPlanScreen({ navigation }) {
 
   const filledDays = workouts.filter((w) => w.name.trim()).length;
 
-  // ── Publish ───────────────────────────────────────────────────────────────
   const handlePublish = useCallback(async () => {
-    const filledWorkouts = workouts.filter((w) => w.name.trim());
-    if (filledWorkouts.length === 0) {
-      Alert.alert('תוכנית ריקה', 'הוסף לפחות יום אחד לפני פרסום.');
+    if (filledDays === 0) {
+      Alert.alert('Empty Plan', 'Add at least one day before publishing.');
       return;
     }
-
     setSaving(true);
     try {
-      // 1. Save plan to Firestore
       await addDoc(collection(db, 'weeklyPlans'), {
         weekLabel: getWeekLabel(),
         weekStart: getMondayISO(),
         workouts: workouts.map((w) => ({
           day: w.day,
           short: w.short,
-          name: w.name.trim() || 'מנוחה',
+          name: w.name.trim() || 'Rest',
         })),
         nutritionTip: nutritionTip.trim(),
         insight: insight.trim(),
@@ -115,38 +85,32 @@ export default function CoachWeeklyPlanScreen({ navigation }) {
         createdAt: serverTimestamp(),
       });
 
-      // 2. Send push to all approved clients
       const snap = await getDocs(
-        query(collection(db, 'users'), where('status', '==', 'approved'))
+        query(collection(db, 'users'), where('status', '==', 'approved')),
       );
-      const tokens = snap.docs
-        .map((d) => d.data().pushToken)
-        .filter(Boolean);
+      const tokens = snap.docs.map((d) => d.data().pushToken).filter(Boolean);
       await sendPushNotificationToMany(
         tokens,
-        '📋 תוכנית שבועית חדשה!',
-        'קירסטן פרסמה את תוכנית האימון לשבוע הבא. בואי לראות!',
-        { screen: 'Library' }
+        'New Weekly Plan',
+        'Your coach has published this week\'s training plan. Check it out!',
+        { screen: 'Library' },
       );
 
-      Alert.alert('פורסם בהצלחה ✓', `התוכנית נשלחה ל-${tokens.length} לקוחות.`, [
-        { text: 'אישור', onPress: () => navigation.goBack() },
+      Alert.alert('Published', `Plan sent to ${tokens.length} clients.`, [
+        { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (err) {
       console.error(err);
-      Alert.alert('שגיאה', 'לא הצלחנו לפרסם. נסה שוב.');
+      Alert.alert('Error', 'Could not publish. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [workouts, nutritionTip, insight, navigation]);
+  }, [workouts, nutritionTip, insight, navigation, filledDays]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.content}
@@ -155,24 +119,25 @@ export default function CoachWeeklyPlanScreen({ navigation }) {
         >
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-              <Ionicons name="chevron-back" size={24} color={colors.primary} />
+            <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+              <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={styles.headerTitle}>תוכנית שבועית</Text>
+              <Eyebrow>PLAN</Eyebrow>
+              <Text style={styles.headerTitle}>Weekly Plan</Text>
               <Text style={styles.headerSub}>{getWeekLabel()}</Text>
             </View>
           </View>
 
-          {/* Weekly workouts */}
+          {/* Workouts card */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardIconWrap}>
-                <Text style={styles.cardEmoji}>🏋️</Text>
+                <Ionicons name="barbell-outline" size={20} color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>אימונים</Text>
-                <Text style={styles.cardSub}>{filledDays} ימים מלאים</Text>
+                <Text style={styles.cardTitle}>Workouts</Text>
+                <Text style={styles.cardSub}>{filledDays} days filled</Text>
               </View>
             </View>
 
@@ -180,13 +145,13 @@ export default function CoachWeeklyPlanScreen({ navigation }) {
               <View key={w.day} style={styles.dayRow}>
                 <View style={styles.dayLabel}>
                   <Text style={styles.dayShort}>{w.short}</Text>
-                  <Text style={styles.dayFull}>{w.day}</Text>
+                  <Text style={styles.dayFull}>{w.day.slice(0, 3)}</Text>
                 </View>
                 <TextInput
-                  style={styles.dayInput}
+                  style={[styles.dayInput, w.name.trim() && styles.dayInputFilled]}
                   value={w.name}
                   onChangeText={(v) => updateWorkout(i, v)}
-                  placeholder="שם האימון / מנוחה"
+                  placeholder="Session name / Rest"
                   placeholderTextColor={colors.textMuted}
                   returnKeyType="next"
                 />
@@ -194,22 +159,22 @@ export default function CoachWeeklyPlanScreen({ navigation }) {
             ))}
           </View>
 
-          {/* Nutrition tip */}
+          {/* Nutrition tip card */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardIconWrap}>
-                <Text style={styles.cardEmoji}>🥗</Text>
+                <Ionicons name="nutrition-outline" size={20} color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>טיפ תזונתי</Text>
-                <Text style={styles.cardSub}>יופיע בתחתית הכרטיסיה</Text>
+                <Text style={styles.cardTitle}>Nutrition Tip</Text>
+                <Text style={styles.cardSub}>Shown at the bottom of the plan card</Text>
               </View>
             </View>
             <TextInput
-              style={[styles.textArea]}
+              style={styles.textArea}
               value={nutritionTip}
               onChangeText={setNutritionTip}
-              placeholder="לדוגמה: שלבי חלבון בכל ארוחה..."
+              placeholder="e.g. Include protein in every meal..."
               placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={3}
@@ -217,22 +182,22 @@ export default function CoachWeeklyPlanScreen({ navigation }) {
             />
           </View>
 
-          {/* Weekly insight */}
+          {/* Weekly message card */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.cardIconWrap}>
-                <Text style={styles.cardEmoji}>💬</Text>
+                <Ionicons name="chatbubble-outline" size={20} color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>מסר שבועי</Text>
-                <Text style={styles.cardSub}>השראה ומוטיבציה ללקוחות</Text>
+                <Text style={styles.cardTitle}>Weekly Message</Text>
+                <Text style={styles.cardSub}>Motivation and inspiration for clients</Text>
               </View>
             </View>
             <TextInput
               style={styles.textArea}
               value={insight}
               onChangeText={setInsight}
-              placeholder="לדוגמה: השבוע נתמקד בעקביות..."
+              placeholder="e.g. This week we focus on consistency..."
               placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={3}
@@ -242,9 +207,9 @@ export default function CoachWeeklyPlanScreen({ navigation }) {
 
           {/* Push notice */}
           <View style={styles.infoBox}>
-            <Ionicons name="notifications-outline" size={18} color={colors.primary} style={{ marginTop: 1 }} />
+            <Ionicons name="notifications-outline" size={16} color={colors.accent} style={{ marginTop: 1 }} />
             <Text style={styles.infoText}>
-              בעת פרסום, כל הלקוחות המאושרים יקבלו התראת פוש עם התוכנית החדשה.
+              All approved clients will receive a push notification when you publish.
             </Text>
           </View>
 
@@ -261,7 +226,7 @@ export default function CoachWeeklyPlanScreen({ navigation }) {
               ) : (
                 <View style={styles.publishInner}>
                   <Ionicons name="send" size={18} color="#fff" />
-                  <Text style={styles.publishText}>פרסם תוכנית ({filledDays} ימים)</Text>
+                  <Text style={styles.publishText}>Publish Plan ({filledDays} days)</Text>
                 </View>
               )}
             </LinearGradient>
@@ -274,68 +239,67 @@ export default function CoachWeeklyPlanScreen({ navigation }) {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
+  safeArea: { flex: 1, backgroundColor: dark.bg0 },
   scroll: { flex: 1 },
   content: { padding: 20, gap: 16 },
 
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-  backBtn: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.cardBorder,
-    justifyContent: 'center', alignItems: 'center',
+  eyebrow: {
+    fontFamily: 'Sora-SemiBold', fontSize: 10.5, letterSpacing: 1.89,
+    textTransform: 'uppercase', color: colors.textMuted,
   },
-  headerTitle: { ...typography.h3, color: colors.textPrimary },
-  headerSub: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
+
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 4 },
+  backBtn: {
+    width: 38, height: 38, borderRadius: 11,
+    backgroundColor: dark.bg2, borderWidth: 1, borderColor: dark.lineSoft,
+    justifyContent: 'center', alignItems: 'center', marginTop: 4,
+  },
+  headerTitle: { fontFamily: 'Sora-Bold', fontSize: 26, color: colors.textPrimary, marginTop: 2 },
+  headerSub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, marginTop: 2 },
 
   card: {
-    backgroundColor: colors.card, borderRadius: 18,
-    borderWidth: 1, borderColor: colors.cardBorder, padding: 18, gap: 14,
+    backgroundColor: dark.bg1, borderRadius: 18,
+    borderWidth: 1, borderColor: dark.lineSoft, padding: 18, gap: 14,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   cardIconWrap: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: colors.primaryGlow, justifyContent: 'center', alignItems: 'center',
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(229,57,53,0.12)', borderWidth: 1,
+    borderColor: 'rgba(229,57,53,0.25)', justifyContent: 'center', alignItems: 'center',
   },
-  cardEmoji: { fontSize: 20 },
-  cardTitle: { ...typography.h4, color: colors.textPrimary },
-  cardSub: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  cardTitle: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },
+  cardSub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, marginTop: 2 },
 
-  // Day rows
   dayRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  dayLabel: { width: 44, alignItems: 'center', gap: 1 },
-  dayShort: { ...typography.h4, color: colors.primary, fontSize: 13 },
-  dayFull: { ...typography.caption, color: colors.textMuted, fontSize: 10 },
+  dayLabel: { width: 44, alignItems: 'center', gap: 2 },
+  dayShort: { fontFamily: 'Sora-SemiBold', fontSize: 11, letterSpacing: 0.5, color: colors.accent },
+  dayFull: { fontFamily: 'Sora-Regular', fontSize: 10, color: colors.textMuted },
   dayInput: {
-    flex: 1,
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 12, borderWidth: 1, borderColor: colors.border,
+    flex: 1, backgroundColor: dark.bg2, borderRadius: 12,
+    borderWidth: 1, borderColor: dark.line,
     paddingHorizontal: 14, paddingVertical: 10,
-    ...typography.body, color: colors.textPrimary,
+    fontFamily: 'Sora-Regular', fontSize: 13, color: colors.textPrimary,
   },
+  dayInputFilled: { borderColor: 'rgba(229,57,53,0.35)' },
 
-  // Text areas
   textArea: {
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 14, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: dark.bg2, borderRadius: 14,
+    borderWidth: 1, borderColor: dark.line,
     paddingHorizontal: 14, paddingVertical: 12,
-    ...typography.body, color: colors.textPrimary,
+    fontFamily: 'Sora-Regular', fontSize: 13, color: colors.textPrimary,
     minHeight: 80,
   },
 
-  // Info box
   infoBox: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
-    backgroundColor: colors.primaryGlow, borderRadius: 14,
-    borderWidth: 1, borderColor: colors.accentSoft, padding: 14,
+    backgroundColor: 'rgba(229,57,53,0.08)', borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(229,57,53,0.2)', padding: 14,
   },
-  infoText: { ...typography.bodySmall, color: colors.textSecondary, flex: 1, lineHeight: 20 },
+  infoText: { fontFamily: 'Sora-Regular', fontSize: 12.5, color: colors.textSecondary, flex: 1, lineHeight: 19 },
 
-  // Publish button
   publishBtn: { borderRadius: 16, overflow: 'hidden', marginTop: 4 },
   publishGradient: { padding: 16, alignItems: 'center' },
   publishInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  publishText: { ...typography.button, color: '#fff' },
+  publishText: { fontFamily: 'Sora-SemiBold', fontSize: 15, color: '#fff' },
 });

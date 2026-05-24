@@ -1,57 +1,45 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
+  ActivityIndicator, Alert, StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
-  collection,
-  onSnapshot,
-  doc,
-  updateDoc,
-  deleteDoc,
-  serverTimestamp,
-  query,
-  orderBy,
+  collection, onSnapshot, doc, updateDoc, deleteDoc,
+  serverTimestamp, query, orderBy,
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { colors, gradients } from '../../theme/colors';
-import { typography } from '../../theme/typography';
-import { LinearGradient } from 'expo-linear-gradient';
+import { colors, gradients, dark } from '../../theme/colors';
+
+function Eyebrow({ children, style }) {
+  return <Text style={[styles.eyebrow, style]}>{children}</Text>;
+}
 
 export default function ClientRequestsScreen() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(null); // uid being processed
+  const [processing, setProcessing] = useState(null);
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'pendingRequests'),
-      orderBy('requestedAt', 'desc')
-    );
-    const unsub = onSnapshot(q, (snap) => {
+    const q = query(collection(db, 'pendingRequests'), orderBy('requestedAt', 'desc'));
+    return onSnapshot(q, (snap) => {
       setRequests(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
-    return unsub;
   }, []);
 
   const handleApprove = async (request) => {
     setProcessing(request.uid);
     try {
-      // Update user status to approved
       await updateDoc(doc(db, 'users', request.uid), {
         status: 'approved',
         approvedAt: serverTimestamp(),
       });
-      // Remove from pending requests
       await deleteDoc(doc(db, 'pendingRequests', request.uid));
-    } catch (e) {
-      Alert.alert('שגיאה', 'לא ניתן לאשר. נסה שוב.');
+    } catch {
+      Alert.alert('Error', 'Could not approve. Please try again.');
     } finally {
       setProcessing(null);
     }
@@ -59,12 +47,12 @@ export default function ClientRequestsScreen() {
 
   const handleReject = (request) => {
     Alert.alert(
-      'דחיית בקשה',
-      `האם לדחות את הבקשה של ${request.name}?`,
+      'Reject Request',
+      `Reject ${request.name}'s request?`,
       [
-        { text: 'ביטול', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'דחייה',
+          text: 'Reject',
           style: 'destructive',
           onPress: async () => {
             setProcessing(request.uid);
@@ -75,85 +63,99 @@ export default function ClientRequestsScreen() {
               });
               await deleteDoc(doc(db, 'pendingRequests', request.uid));
             } catch {
-              Alert.alert('שגיאה', 'לא ניתן לדחות. נסה שוב.');
+              Alert.alert('Error', 'Could not reject. Please try again.');
             } finally {
               setProcessing(null);
             }
           },
         },
-      ]
+      ],
     );
   };
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+
       {/* Header */}
-      <LinearGradient colors={['rgba(20,184,166,0.08)', '#F8FAFC']} style={styles.header}>
-        <Text style={styles.headerTitle}>בקשות הצטרפות</Text>
-        {requests.length > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{requests.length}</Text>
-          </View>
-        )}
-      </LinearGradient>
+      <View style={styles.header}>
+        <Eyebrow>PENDING</Eyebrow>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerTitle}>Join Requests</Text>
+          {requests.length > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{requests.length}</Text>
+            </View>
+          )}
+        </View>
+      </View>
 
       {requests.length === 0 ? (
-        // Empty state
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>✅</Text>
-          <Text style={styles.emptyTitle}>אין בקשות ממתינות</Text>
-          <Text style={styles.emptyText}>כשלקוח חדש יירשם, הבקשה תופיע כאן.</Text>
+        <View style={styles.center}>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="checkmark-circle-outline" size={28} color={colors.textMuted} />
+          </View>
+          <Text style={styles.emptyTitle}>No pending requests</Text>
+          <Text style={styles.emptySub}>New client requests will appear here</Text>
         </View>
       ) : (
         <FlatList
           data={requests}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <View style={styles.requestCard}>
               {/* Avatar */}
-              <View style={styles.avatar}>
+              <LinearGradient
+                colors={['rgba(229,57,53,0.3)', 'rgba(198,40,40,0.3)']}
+                style={styles.avatar}
+              >
                 <Text style={styles.avatarText}>
                   {item.name?.charAt(0)?.toUpperCase() ?? '?'}
                 </Text>
-              </View>
+              </LinearGradient>
 
               {/* Info */}
               <View style={styles.info}>
                 <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.email}>{item.email}</Text>
+                <Text style={styles.email} numberOfLines={1}>{item.email}</Text>
                 <Text style={styles.time}>
                   {item.requestedAt?.toDate
                     ? formatDate(item.requestedAt.toDate())
-                    : 'ממתין...'}
+                    : 'Pending...'}
                 </Text>
               </View>
 
               {/* Actions */}
               <View style={styles.actions}>
                 {processing === item.uid ? (
-                  <ActivityIndicator color={colors.primary} />
+                  <ActivityIndicator color={colors.accent} />
                 ) : (
                   <>
                     <TouchableOpacity
                       style={styles.approveBtn}
                       onPress={() => handleApprove(item)}
+                      activeOpacity={0.8}
                     >
-                      <Text style={styles.approveBtnText}>✓ אשר</Text>
+                      <Ionicons name="checkmark" size={16} color={colors.success} />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.rejectBtn}
                       onPress={() => handleReject(item)}
+                      activeOpacity={0.8}
                     >
-                      <Text style={styles.rejectBtnText}>✕</Text>
+                      <Ionicons name="close" size={16} color={colors.error} />
                     </TouchableOpacity>
                   </>
                 )}
@@ -162,99 +164,71 @@ export default function ClientRequestsScreen() {
           )}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 function formatDate(date) {
   const now = new Date();
-  const diff = Math.floor((now - date) / 1000 / 60); // minutes
-  if (diff < 1) return 'עכשיו';
-  if (diff < 60) return `לפני ${diff} דקות`;
-  if (diff < 1440) return `לפני ${Math.floor(diff / 60)} שעות`;
-  return date.toLocaleDateString('he-IL');
+  const diff = Math.floor((now - date) / 1000 / 60);
+  if (diff < 1) return 'Just now';
+  if (diff < 60) return `${diff}m ago`;
+  if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
+  safeArea: { flex: 1, backgroundColor: dark.bg0 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
 
-  header: {
-    paddingTop: 60,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  eyebrow: {
+    fontFamily: 'Sora-SemiBold', fontSize: 10.5, letterSpacing: 1.89,
+    textTransform: 'uppercase', color: colors.textMuted,
   },
-  headerTitle: { ...typography.h2, color: colors.textPrimary },
+
+  header: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  headerTitle: { fontFamily: 'Sora-Bold', fontSize: 28, color: colors.textPrimary },
   badge: {
-    backgroundColor: colors.error,
-    borderRadius: 12,
-    minWidth: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 7,
+    backgroundColor: colors.error, borderRadius: 12,
+    minWidth: 24, height: 24, alignItems: 'center',
+    justifyContent: 'center', paddingHorizontal: 7,
   },
-  badgeText: { ...typography.caption, color: '#fff', fontWeight: '700' },
+  badgeText: { fontFamily: 'Sora-Bold', fontSize: 11, color: '#fff' },
 
-  list: { padding: 16, gap: 12 },
+  list: { padding: 20, gap: 12 },
+
+  emptyIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: dark.bg2, alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  emptyTitle: { fontFamily: 'Sora-SemiBold', fontSize: 15, color: colors.textSecondary },
+  emptySub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, textAlign: 'center' },
 
   requestCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
+    backgroundColor: dark.bg1, borderRadius: 18,
+    borderWidth: 1, borderColor: dark.lineSoft,
+    padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14,
   },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.primaryGlow,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 46, height: 46, borderRadius: 23,
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { ...typography.h3, color: colors.primary },
+  avatarText: { fontFamily: 'Sora-Bold', fontSize: 18, color: colors.accent },
   info: { flex: 1, gap: 3 },
-  name: { ...typography.h4, color: colors.textPrimary },
-  email: { ...typography.bodySmall, color: colors.textSecondary },
-  time: { ...typography.caption, color: colors.textMuted },
+  name: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },
+  email: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textSecondary },
+  time: { fontFamily: 'Sora-Regular', fontSize: 11, color: colors.textMuted },
 
   actions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   approveBtn: {
-    backgroundColor: 'rgba(76,175,80,0.15)',
-    borderWidth: 1,
-    borderColor: colors.success,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: 'rgba(75,200,120,0.12)', borderWidth: 1,
+    borderColor: 'rgba(75,200,120,0.3)', alignItems: 'center', justifyContent: 'center',
   },
-  approveBtnText: { ...typography.buttonSmall, color: colors.success },
   rejectBtn: {
-    backgroundColor: 'rgba(244,67,54,0.1)',
-    borderWidth: 1,
-    borderColor: colors.error,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: 'rgba(239,83,80,0.12)', borderWidth: 1,
+    borderColor: 'rgba(239,83,80,0.3)', alignItems: 'center', justifyContent: 'center',
   },
-  rejectBtnText: { ...typography.buttonSmall, color: colors.error },
-
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    padding: 40,
-  },
-  emptyIcon: { fontSize: 56 },
-  emptyTitle: { ...typography.h3, color: colors.textPrimary },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
 });
