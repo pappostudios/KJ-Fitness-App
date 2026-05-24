@@ -28,7 +28,27 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "intentFilters": [
+              {
+                "action": "VIEW",
+                "autoVerify": true,
+                "data": [
+                  {
+                    "scheme": "com.googleusercontent.apps.525333297888-nmevu9b4vpjur32c4eqepvdt6nstes2g",
+                    "host": "oauth2redirect"
+                  }
+                ],
+                "category": ["BROWSABLE", "DEFAULT"]
+              }
+            ]
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {

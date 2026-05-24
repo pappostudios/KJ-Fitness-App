@@ -51,7 +51,7 @@ export default function CoachHomeScreen({ navigation }) {
           onPress={() => navigation.navigate('CoachLibrary')}
           activeOpacity={0.8}
         >
-          <LinearGradient colors={['rgba(0,188,212,0.12)', 'rgba(0,151,167,0.06)']} style={styles.actionGradient}>
+          <LinearGradient colors={gradients.accentCard} style={styles.actionGradient}>
             <View style={styles.actionLeft}>
               <Text style={styles.actionIcon}>📚</Text>
               <View>
@@ -69,7 +69,7 @@ export default function CoachHomeScreen({ navigation }) {
           onPress={() => navigation.navigate('CoachWeeklyPlan')}
           activeOpacity={0.8}
         >
-          <LinearGradient colors={['rgba(0,188,212,0.12)', 'rgba(0,151,167,0.06)']} style={styles.actionGradient}>
+          <LinearGradient colors={gradients.accentCard} style={styles.actionGradient}>
             <View style={styles.actionLeft}>
               <Text style={styles.actionIcon}>📋</Text>
               <View>
@@ -87,7 +87,7 @@ export default function CoachHomeScreen({ navigation }) {
           onPress={() => navigation.navigate('CoachSettings')}
           activeOpacity={0.8}
         >
-          <LinearGradient colors={['rgba(26,68,232,0.15)', 'rgba(26,68,232,0.07)']} style={styles.actionGradient}>
+          <LinearGradient colors={gradients.accentCard} style={styles.actionGradient}>
             <View style={styles.actionLeft}>
               <Text style={styles.actionIcon}>💙</Text>
               <View>
@@ -95,7 +95,7 @@ export default function CoachHomeScreen({ navigation }) {
                 <Text style={styles.actionSub}>קישור תשלום ומחיר אימון</Text>
               </View>
             </View>
-            <Text style={[styles.actionArrow, { color: '#1A44E8' }]}>›</Text>
+            <Text style={styles.actionArrow}>›</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>

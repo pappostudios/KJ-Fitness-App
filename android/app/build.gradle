@@ -180,3 +180,6 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+// Apply google-services plugin to process google-services.json
+apply plugin: 'com.google.gms.google-services'

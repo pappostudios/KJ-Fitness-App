@@ -1,7 +1,7 @@
 // Firebase configuration — shared with KJ Fitness website (kj-fitness-80723)
 import { initializeApp, getApps } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -29,8 +29,18 @@ try {
 }
 export { auth };
 
-// Firestore — client/session/schedule data
-export const db = getFirestore(app);
+// Firestore — experimentalForceLongPolling fixes WebSocket hangs in React Native
+// Without this, setDoc/getDoc can block forever waiting for server confirmation.
+let db;
+try {
+  db = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+  });
+} catch {
+  // Already initialized (fast refresh)
+  db = getFirestore(app);
+}
+export { db };
 
 // Storage — media uploads
 export const storage = getStorage(app);

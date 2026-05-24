@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryGlow,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(0,188,212,0.2)',
+    borderColor: colors.accentSoft,
     padding: 14,
     alignItems: 'flex-start',
   },

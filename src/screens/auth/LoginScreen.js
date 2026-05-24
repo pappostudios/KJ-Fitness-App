@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,20 +9,23 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
+import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { useAuth } from '../../context/AuthContext';
-import { colors, gradients } from '../../theme/colors';
+import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
-// Required for expo-auth-session to close the browser after OAuth
-WebBrowser.maybeCompleteAuthSession();
+// Google OAuth client IDs (from Firebase Console / Google Cloud Console)
+const WEB_CLIENT_ID = '525333297888-d1h242a2i5dvj4tag6ib924oc0s836rh.apps.googleusercontent.com';
 
-// ── Get this from: Firebase Console → Authentication → Sign-in method
-//    → Google → Web SDK configuration → Web client ID
-const GOOGLE_WEB_CLIENT_ID = '525333297888-d1h242a2i5dvj4tag6ib924oc0s836rh.apps.googleusercontent.com';
+// Configure native Google Sign-In once at module level
+GoogleSignin.configure({
+  webClientId: WEB_CLIENT_ID,
+  offlineAccess: true,
+});
 
 export default function LoginScreen({ navigation }) {
   const { signIn, signInWithGoogle, error, setError } = useAuth();
@@ -33,112 +36,89 @@ export default function LoginScreen({ navigation }) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Force Expo proxy as redirect URI (required for Expo Go — local IPs don't work with Google)
-  const REDIRECT_URI = 'https://auth.expo.io/@PappoStudios/kj-fitness-app';
-
-  // Google OAuth request
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: GOOGLE_WEB_CLIENT_ID,
-    androidClientId: GOOGLE_WEB_CLIENT_ID,
-    iosClientId: GOOGLE_WEB_CLIENT_ID,
-    redirectUri: REDIRECT_URI,
-  });
-
-  useEffect(() => {
-    if (request?.redirectUri) {
-      console.log('🔑 REDIRECT URI:', request.redirectUri);
+  const handleGooglePress = async () => {
+    if (!GoogleSignin) {
+      Alert.alert('Google Sign-In', 'Google Sign-In requires a native build.\nUse email + password to log in for now.');
+      return;
     }
-  }, [request]);
-
-  // Handle Google response
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
-      setGoogleLoading(true);
-      signInWithGoogle(id_token).finally(() => setGoogleLoading(false));
-    } else if (response?.type === 'error') {
-      setError('שגיאה בהתחברות עם Google. נסה שוב.');
+    setError && setError(null);
+    setGoogleLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      await GoogleSignin.signOut(); // clear cached account so picker always shows
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo?.data?.idToken ?? userInfo?.idToken ?? null;
+      if (!idToken) return; // cancelled or no token — just stop silently
+      await signInWithGoogle(idToken, null);
+    } catch (e) {
+      if (e.code !== statusCodes.SIGN_IN_CANCELLED) {
+        setError && setError('Google sign-in failed. Please try again.');
+      }
+    } finally {
       setGoogleLoading(false);
     }
-  }, [response]);
+  };
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      setError('נא להזין אימייל וסיסמה.');
+      setError && setError('Please enter your email and password.');
       return;
     }
     setSigningIn(true);
     try {
-      await signIn(email, password);
+      await signIn(email.trim(), password);
     } catch {
-      // error set in context
+      // error set inside context
     } finally {
       setSigningIn(false);
     }
   };
 
-  const handleGoogle = () => {
-    setError(null);
-    setGoogleLoading(true);
-    promptAsync();
-  };
+  const busy = signingIn || googleLoading;
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero header */}
-        <LinearGradient colors={gradients.hero} style={styles.header}>
-          <View style={styles.logoContainer}>
+        {/* Hero block */}
+        <View style={styles.hero}>
+          <LinearGradient
+            colors={['rgba(229,57,53,0.18)', 'transparent']}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(28,20,18,0.8)', dark.bg0]}
+            style={StyleSheet.absoluteFillObject}
+            locations={[0.3, 0.7, 1]}
+          />
+          {/* Logo top-left */}
+          <View style={styles.heroLogo}>
             <LinearGradient colors={gradients.primary} style={styles.logoBadge}>
-              <Text style={styles.logoText}>KJ</Text>
+              <Ionicons name="flash" size={18} color={colors.accentInk} />
             </LinearGradient>
-            <Text style={styles.appName}>KJ Fitness</Text>
-            <Text style={styles.tagline}>אימון אישי • תזונה • ליווי מקצועי</Text>
+            <Text style={styles.logoWordmark}>KJ FITNESS</Text>
           </View>
-        </LinearGradient>
+        </View>
 
-        {/* Login card */}
-        <View style={styles.card}>
-          <Text style={styles.title}>כניסה לאפליקציה</Text>
-
-          {/* ── Google Sign-In ── */}
-          <TouchableOpacity
-            style={styles.googleButton}
-            onPress={handleGoogle}
-            disabled={!request || googleLoading || signingIn}
-            activeOpacity={0.85}
-          >
-            {googleLoading ? (
-              <ActivityIndicator color={colors.textPrimary} />
-            ) : (
-              <>
-                <Text style={styles.googleIcon}>G</Text>
-                <Text style={styles.googleText}>המשך עם Google</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          {/* Divider */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>או</Text>
-            <View style={styles.dividerLine} />
-          </View>
+        {/* Form area */}
+        <View style={styles.form}>
+          <Text style={styles.eyebrow}>Welcome to KJ Fitness</Text>
+          <Text style={styles.tagline}>Coached. Not programmed.</Text>
 
           {/* Email */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>אימייל</Text>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>EMAIL</Text>
             <TextInput
               style={styles.input}
               value={email}
-              onChangeText={(t) => { setEmail(t); setError(null); }}
+              onChangeText={(t) => { setEmail(t); setError && setError(null); }}
               placeholder="your@email.com"
               placeholderTextColor={colors.textMuted}
               keyboardType="email-address"
@@ -150,13 +130,13 @@ export default function LoginScreen({ navigation }) {
           </View>
 
           {/* Password */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>סיסמה</Text>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>PASSWORD</Text>
             <View style={styles.passwordRow}>
               <TextInput
                 style={[styles.input, styles.passwordInput]}
                 value={password}
-                onChangeText={(t) => { setPassword(t); setError(null); }}
+                onChangeText={(t) => { setPassword(t); setError && setError(null); }}
                 placeholder="••••••••"
                 placeholderTextColor={colors.textMuted}
                 secureTextEntry={!showPassword}
@@ -165,215 +145,193 @@ export default function LoginScreen({ navigation }) {
                 onSubmitEditing={handleLogin}
               />
               <TouchableOpacity
-                style={styles.eyeButton}
+                style={styles.eyeBtn}
                 onPress={() => setShowPassword(!showPassword)}
+                activeOpacity={0.7}
               >
-                <Text style={styles.eyeText}>{showPassword ? '🙈' : '👁️'}</Text>
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color={colors.textMuted}
+                />
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Error */}
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          {/* Sign in button */}
+          {/* Forgot */}
           <TouchableOpacity
-            style={styles.loginButton}
+            style={styles.forgotRow}
+            onPress={() => navigation?.navigate('ForgotPassword')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.forgotText}>Forgot password?</Text>
+          </TouchableOpacity>
+
+          {/* Error */}
+          {error ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          <View style={{ height: 28 }} />
+
+          {/* Login button */}
+          <TouchableOpacity
+            style={styles.loginBtn}
             onPress={handleLogin}
-            disabled={signingIn || googleLoading}
+            disabled={busy}
             activeOpacity={0.85}
           >
             <LinearGradient colors={gradients.primary} style={styles.loginGradient}>
-              {signingIn ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.loginButtonText}>כניסה</Text>
-              )}
+              {signingIn
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.loginBtnText}>Log in</Text>
+              }
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Forgot password */}
+          {/* Divider */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerLabel}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Google Sign-In — uses expo-auth-session, works in Expo Go */}
           <TouchableOpacity
-            style={styles.forgotButton}
-            onPress={() => navigation.navigate('ForgotPassword')}
+            style={[styles.googleBtn, busy && { opacity: 0.6 }]}
+            onPress={handleGooglePress}
+            disabled={busy}
+            activeOpacity={0.85}
           >
-            <Text style={styles.forgotText}>שכחתי סיסמה</Text>
+            {googleLoading
+              ? <ActivityIndicator color="#333" />
+              : <>
+                  <Text style={styles.googleG}>G</Text>
+                  <Text style={styles.googleText}>Continue with Google</Text>
+                </>
+            }
           </TouchableOpacity>
-        </View>
 
-        {/* Sign up link */}
-        <TouchableOpacity
-          style={styles.signUpLink}
-          onPress={() => navigation.navigate('SignUp')}
-        >
-          <Text style={styles.signUpText}>
-            לקוח חדש?{' '}
-            <Text style={styles.signUpBold}>בקש גישה לאפליקציה</Text>
+          {/* Sign up */}
+          <TouchableOpacity
+            style={styles.signUpLink}
+            onPress={() => navigation?.navigate('SignUp')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.signUpText}>
+              New client?{'  '}
+              <Text style={styles.signUpAccent}>Request access</Text>
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={styles.legal}>
+            By signing in you accept the{' '}
+            <Text style={{ color: colors.textSecondary, textDecorationLine: 'underline' }}>
+              liability waiver
+            </Text>.
           </Text>
-        </TouchableOpacity>
-
-        <Text style={styles.footer}>KJ Fitness © 2025</Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  root: { flex: 1, backgroundColor: dark.bg0 },
   scroll: { flexGrow: 1 },
 
-  header: {
-    paddingTop: 80,
-    paddingBottom: 40,
-    alignItems: 'center',
+  hero: {
+    height: 280,
+    backgroundColor: dark.bg1,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
   },
-  logoContainer: { alignItems: 'center', gap: 10 },
-  logoBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 14,
-    elevation: 12,
-  },
-  logoText: { ...typography.h1, color: '#fff', fontSize: 32 },
-  appName: { ...typography.h2, color: colors.textPrimary },
-  tagline: { ...typography.bodySmall, color: colors.textSecondary },
-
-  card: {
-    margin: 20,
-    backgroundColor: colors.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    padding: 24,
-    gap: 16,
-  },
-  title: {
-    ...typography.h3,
-    color: colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-
-  // Google button
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  googleIcon: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#4285F4',
-    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif' }),
-  },
-  googleText: {
-    ...typography.button,
-    color: '#3c3c3c',
-    fontSize: 15,
-  },
-
-  // Divider
-  dividerRow: {
+  heroLogo: {
+    position: 'absolute',
+    top: 56,
+    left: 24,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.border,
+  logoBadge: {
+    width: 32, height: 32, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
   },
-  dividerText: {
-    ...typography.caption,
-    color: colors.textMuted,
-  },
-
-  // Inputs
-  inputGroup: { gap: 6 },
-  label: { ...typography.label, color: colors.textSecondary },
-  input: {
-    backgroundColor: colors.backgroundAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+  logoWordmark: {
+    fontFamily: 'Sora-ExtraBold',
+    fontSize: 14, letterSpacing: 2.5,
     color: colors.textPrimary,
-    ...typography.body,
-    textAlign: 'right',
-  },
-  passwordRow: { flexDirection: 'row', alignItems: 'center' },
-  passwordInput: {
-    flex: 1,
-    borderTopRightRadius: 12,
-    borderBottomRightRadius: 12,
-    borderTopLeftRadius: 0,
-    borderBottomLeftRadius: 0,
-    borderRightWidth: 0,
-  },
-  eyeButton: {
-    backgroundColor: colors.backgroundAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderTopRightRadius: 0,
-    borderBottomRightRadius: 0,
-    borderTopLeftRadius: 12,
-    borderBottomLeftRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-  },
-  eyeText: { fontSize: 16 },
-
-  errorText: {
-    ...typography.bodySmall,
-    color: colors.error,
-    textAlign: 'center',
-    backgroundColor: 'rgba(244,67,54,0.1)',
-    borderRadius: 8,
-    padding: 10,
   },
 
-  loginButton: {
-    borderRadius: 14,
-    overflow: 'hidden',
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 8,
+  form: { flex: 1, padding: 24, paddingBottom: 40 },
+  eyebrow: {
+    fontFamily: 'Sora-SemiBold',
+    fontSize: 10.5, letterSpacing: 1.89, textTransform: 'uppercase',
+    color: colors.accent, marginTop: 8,
   },
-  loginGradient: { paddingVertical: 16, alignItems: 'center' },
-  loginButtonText: { ...typography.button, color: '#fff', fontSize: 17 },
+  tagline: { ...typography.h1, color: colors.textPrimary, marginTop: 10, marginBottom: 28 },
 
-  forgotButton: { alignItems: 'center', paddingVertical: 4 },
-  forgotText: { ...typography.bodySmall, color: colors.primary },
+  fieldGroup: { marginBottom: 16 },
+  fieldLabel: {
+    fontFamily: 'Sora-SemiBold',
+    fontSize: 10, letterSpacing: 1.6, textTransform: 'uppercase',
+    color: colors.textMuted, marginBottom: 6,
+  },
+  input: {
+    height: 52, borderRadius: 12,
+    backgroundColor: dark.bg1, borderWidth: 1, borderColor: dark.line,
+    color: colors.textPrimary, paddingHorizontal: 14,
+    fontFamily: 'Sora-Regular', fontSize: 15,
+  },
+  passwordRow: { flexDirection: 'row' },
+  passwordInput: { flex: 1, borderTopRightRadius: 0, borderBottomRightRadius: 0 },
+  eyeBtn: {
+    width: 52, height: 52,
+    borderTopRightRadius: 12, borderBottomRightRadius: 12,
+    backgroundColor: dark.bg1,
+    borderWidth: 1, borderLeftWidth: 0, borderColor: dark.line,
+    alignItems: 'center', justifyContent: 'center',
+  },
 
-  signUpLink: { alignItems: 'center', paddingVertical: 12 },
-  signUpText: { ...typography.bodySmall, color: colors.textSecondary },
-  signUpBold: { color: colors.primary, fontWeight: '700' },
+  forgotRow: { alignItems: 'flex-end', marginBottom: 4 },
+  forgotText: { fontFamily: 'Sora-SemiBold', fontSize: 13, color: colors.accent },
 
-  footer: {
-    ...typography.caption,
-    color: colors.textMuted,
-    textAlign: 'center',
-    paddingBottom: 30,
-    paddingTop: 4,
+  errorBox: { backgroundColor: 'rgba(239,83,80,0.12)', borderRadius: 10, padding: 12, marginTop: 8 },
+  errorText: { fontFamily: 'Sora-Regular', fontSize: 13, color: colors.error, textAlign: 'center' },
+
+  loginBtn: {
+    borderRadius: 14, overflow: 'hidden',
+    shadowColor: colors.accent, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35, shadowRadius: 10, elevation: 8,
+  },
+  loginGradient: { height: 56, alignItems: 'center', justifyContent: 'center' },
+  loginBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 16, color: '#fff', letterSpacing: 0.2 },
+
+  divider: { flexDirection: 'row', alignItems: 'center', marginVertical: 20, gap: 12 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: dark.lineSoft },
+  dividerLabel: { fontFamily: 'Sora-Regular', fontSize: 13, color: colors.textMuted },
+
+  googleBtn: {
+    height: 52, borderRadius: 14,
+    backgroundColor: '#fff',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1, shadowRadius: 6, elevation: 3,
+  },
+  googleG: {
+    fontSize: 18, fontWeight: '800', color: '#4285F4',
+    fontFamily: Platform.select({ ios: 'Georgia', android: 'serif' }),
+  },
+  googleText: { fontFamily: 'Sora-SemiBold', fontSize: 15, color: '#3c3c3c' },
+
+  signUpLink: { alignItems: 'center', paddingVertical: 16 },
+  signUpText: { fontFamily: 'Sora-Regular', fontSize: 13, color: colors.textMuted },
+  signUpAccent: { color: colors.accent, fontFamily: 'Sora-SemiBold' },
+  legal: {
+    fontFamily: 'Sora-Regular', fontSize: 11, color: colors.textMuted,
+    textAlign: 'center', lineHeight: 16,
   },
 });

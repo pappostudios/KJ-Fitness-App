@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { colors } from '../../theme/colors';
+import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 export default function ClientProfileScreen({ navigation }) {
@@ -90,7 +90,7 @@ export default function ClientProfileScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Header */}
-      <LinearGradient colors={['#0D0D1A', '#141428']} style={styles.header}>
+      <LinearGradient colors={['rgba(20,184,166,0.08)', '#F8FAFC']} style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -111,7 +111,7 @@ export default function ClientProfileScreen({ navigation }) {
           {/* Avatar */}
           <View style={styles.avatarSection}>
             <LinearGradient
-              colors={[colors.primaryGlow, '#0A2A30']}
+              colors={gradients.avatar}
               style={styles.avatar}
             >
               <Text style={styles.avatarText}>{getInitials(name || profile?.name)}</Text>

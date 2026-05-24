@@ -96,7 +96,7 @@ export default function ClientRequestsScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <LinearGradient colors={['#141428', '#0A0A1A']} style={styles.header}>
+      <LinearGradient colors={['rgba(20,184,166,0.08)', '#F8FAFC']} style={styles.header}>
         <Text style={styles.headerTitle}>בקשות הצטרפות</Text>
         {requests.length > 0 && (
           <View style={styles.badge}>

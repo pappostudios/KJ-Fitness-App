@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   infoBox: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
     backgroundColor: colors.primaryGlow, borderRadius: 14,
-    borderWidth: 1, borderColor: 'rgba(0,188,212,0.2)', padding: 14,
+    borderWidth: 1, borderColor: colors.accentSoft, padding: 14,
   },
   infoText: { ...typography.bodySmall, color: colors.textSecondary, flex: 1, lineHeight: 20 },
 

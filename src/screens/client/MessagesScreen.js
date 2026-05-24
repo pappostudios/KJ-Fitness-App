@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,169 +9,196 @@ import {
   Platform,
   ActivityIndicator,
   StyleSheet,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  setDoc,
-  getDoc,
-  doc,
-  serverTimestamp,
-  increment,
+  collection, query, orderBy, onSnapshot,
+  addDoc, serverTimestamp,
 } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { sendPushNotification } from '../../utils/sendPushNotification';
-import { colors, gradients } from '../../theme/colors';
+import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
-// Each client has one conversation with the coach, keyed by the client's UID.
+// Coach email — messages from this address show as KJ
+const COACH_EMAIL = 'kjfitness.info@gmail.com';
+
+function Avatar({ initials, size = 32 }) {
+  return (
+    <LinearGradient
+      colors={gradients.avatar}
+      style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
+    >
+      <Text style={[styles.avatarText, { fontSize: size * 0.36 }]}>{initials}</Text>
+    </LinearGradient>
+  );
+}
+
+function formatTime(ts) {
+  if (!ts?.toDate) return '';
+  const d = ts.toDate();
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 export default function MessagesScreen() {
   const { user, profile } = useAuth();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const flatListRef = useRef(null);
 
-  const conversationId = user?.uid;
+  const threadId = user?.uid ? `thread_${user.uid}` : null;
 
-  // ── Live messages (newest-first for inverted FlatList) ────────────────────
   useEffect(() => {
-    if (!conversationId) return;
-
-    // Reset unread count for client when screen opens
-    setDoc(doc(db, 'conversations', conversationId), { unreadByClient: 0 }, { merge: true }).catch(() => {});
-
+    if (!threadId) return;
     const q = query(
-      collection(db, 'conversations', conversationId, 'messages'),
-      orderBy('createdAt', 'desc')
+      collection(db, 'threads', threadId, 'messages'),
+      orderBy('createdAt', 'asc'),
     );
-    const unsub = onSnapshot(q, (snap) => {
+    return onSnapshot(q, (snap) => {
       setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLoading(false);
     });
-    return unsub;
-  }, [conversationId]);
+  }, [threadId]);
 
-  // ── Send a message ────────────────────────────────────────────────────────
-  const sendMessage = useCallback(async () => {
-    const txt = text.trim();
-    if (!txt || sending) return;
+  const send = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || sending || !threadId) return;
     setText('');
     setSending(true);
     try {
-      await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
+      await addDoc(collection(db, 'threads', threadId, 'messages'), {
+        text: trimmed,
         senderId: user.uid,
-        senderName: profile?.name ?? user.email,
-        senderRole: 'client',
-        text: txt,
+        senderEmail: user.email,
         createdAt: serverTimestamp(),
       });
-      await setDoc(
-        doc(db, 'conversations', conversationId),
-        {
-          clientId: user.uid,
-          clientName: profile?.name ?? user.email,
-          lastMessage: txt,
-          lastMessageAt: serverTimestamp(),
-          unreadByCoach: increment(1),
-          unreadByClient: 0,
-        },
-        { merge: true }
-      );
-
-      // Notify coach
-      try {
-        const settingsSnap = await getDoc(doc(db, 'settings', 'coach'));
-        const coachToken = settingsSnap.data()?.pushToken;
-        const senderName = profile?.name ?? user.email;
-        await sendPushNotification(
-          coachToken,
-          `💬 הודעה מ-${senderName}`,
-          txt,
-          { screen: 'Messages', clientId: user.uid }
-        );
-      } catch (_) { /* push errors are non-fatal */ }
-    } catch {
-      setText(txt); // restore on failure so the user doesn't lose their message
+    } catch (e) {
+      console.warn('Send error', e);
     } finally {
       setSending(false);
     }
-  }, [text, sending, user, profile, conversationId]);
+  };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const isCoachMsg = (msg) =>
+    msg.senderEmail === COACH_EMAIL || msg.senderId === 'coach';
+
+  const displayName = profile?.name || user?.displayName || '';
+  const clientInitials = displayName
+    ? (displayName.split(' ').length >= 2
+        ? displayName.split(' ')[0][0] + displayName.split(' ')[1][0]
+        : displayName[0]
+      ).toUpperCase()
+    : '?';
+
+  const renderMessage = ({ item, index }) => {
+    const fromCoach = isCoachMsg(item);
+    const prevMsg = messages[index - 1];
+    const showAvatar = fromCoach && (!prevMsg || !isCoachMsg(prevMsg));
+    const isLast = index === messages.length - 1;
+
+    return (
+      <View
+        style={[
+          styles.msgRow,
+          fromCoach ? styles.msgRowLeft : styles.msgRowRight,
+          { marginBottom: isLast ? 16 : 4 },
+        ]}
+      >
+        {fromCoach && (
+          <View style={styles.msgAvatarSlot}>
+            {showAvatar ? <Avatar initials="KJ" size={28} /> : null}
+          </View>
+        )}
+        <View
+          style={[
+            styles.bubble,
+            fromCoach ? styles.bubbleCoach : styles.bubbleClient,
+          ]}
+        >
+          <Text style={[styles.bubbleText, fromCoach && styles.bubbleTextCoach]}>
+            {item.text}
+          </Text>
+          <Text style={[styles.bubbleTime, fromCoach && styles.bubbleTimeCoach]}>
+            {formatTime(item.createdAt)}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
 
       {/* Header */}
-      <LinearGradient colors={gradients.hero} style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>KJ</Text>
-        </View>
-        <View style={styles.headerText}>
+      <View style={styles.header}>
+        <Avatar initials="KJ" size={36} />
+        <View style={{ flex: 1 }}>
           <Text style={styles.headerName}>Kirsten</Text>
-          <Text style={styles.headerSub}>המאמנת שלך</Text>
+          <Text style={styles.headerSub}>Your coach · KJ Fitness</Text>
         </View>
-      </LinearGradient>
+        <Ionicons name="ellipsis-horizontal" size={20} color={colors.textMuted} />
+      </View>
+      <View style={styles.headerDivider} />
 
       <KeyboardAvoidingView
-        style={styles.flex}
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator color={colors.primary} size="large" />
+          <View style={styles.loadingCenter}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        ) : messages.length === 0 ? (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="chatbubble-ellipses-outline" size={28} color={colors.textMuted} />
+            </View>
+            <Text style={styles.emptyTitle}>No messages yet</Text>
+            <Text style={styles.emptyBody}>
+              Say hi to Kirsten — ask a question, share how today's session felt, or send a video.
+            </Text>
           </View>
         ) : (
           <FlatList
+            ref={flatListRef}
             data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <MessageBubble message={item} isMe={item.senderRole === 'client'} />
-            )}
-            inverted
-            contentContainerStyle={styles.list}
+            renderItem={renderMessage}
+            keyExtractor={(m) => m.id}
+            contentContainerStyle={styles.listContent}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
             showsVerticalScrollIndicator={false}
-            ListEmptyComponent={<EmptyChat />}
-            keyboardDismissMode="interactive"
           />
         )}
 
         {/* Input bar */}
         <View style={styles.inputBar}>
           <TextInput
-            style={styles.input}
+            style={styles.textInput}
             value={text}
             onChangeText={setText}
-            placeholder="הקלד הודעה..."
+            placeholder="Message Kirsten…"
             placeholderTextColor={colors.textMuted}
             multiline
-            maxLength={500}
-            textAlign="right"
+            maxLength={1000}
+            returnKeyType="default"
           />
           <TouchableOpacity
-            style={styles.sendBtn}
-            onPress={sendMessage}
+            style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
+            onPress={send}
             disabled={!text.trim() || sending}
             activeOpacity={0.8}
           >
-            <LinearGradient
-              colors={text.trim() ? gradients.primary : [colors.card, colors.cardElevated]}
-              style={styles.sendBtnInner}
-            >
-              {sending
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <Ionicons name="send" size={17} color={text.trim() ? '#fff' : colors.textMuted} />
-              }
-            </LinearGradient>
+            {sending
+              ? <ActivityIndicator size="small" color={colors.accentInk} />
+              : <Ionicons name="arrow-up" size={18} color={colors.accentInk} />
+            }
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -179,166 +206,90 @@ export default function MessagesScreen() {
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function MessageBubble({ message, isMe }) {
-  const time = message.createdAt?.toDate
-    ? message.createdAt.toDate().toLocaleTimeString('he-IL', {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : '';
-
-  return (
-    <View style={[styles.bubbleRow, isMe && styles.bubbleRowMe]}>
-      {!isMe && (
-        <View style={styles.avatarSmall}>
-          <Text style={styles.avatarSmallText}>KJ</Text>
-        </View>
-      )}
-      <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
-        <Text style={[styles.bubbleText, isMe && styles.bubbleTextMe]}>
-          {message.text}
-        </Text>
-        <Text style={[styles.bubbleTime, isMe && styles.bubbleTimeMe]}>
-          {time}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-function EmptyChat() {
-  return (
-    // transform scaleY -1 counteracts the inverted FlatList
-    <View style={styles.emptyWrap}>
-      <Text style={styles.emptyIcon}>💬</Text>
-      <Text style={styles.emptyTitle}>עוד אין הודעות</Text>
-      <Text style={styles.emptySub}>שלח הודעה ראשונה לקירסטן!</Text>
-    </View>
-  );
-}
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  flex: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  safeArea: { flex: 1, backgroundColor: dark.bg0 },
 
   // Header
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 16,
-    paddingBottom: 14,
-    paddingHorizontal: 20,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 20, paddingVertical: 14,
   },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: { ...typography.label, color: '#fff' },
-  headerText: { gap: 2 },
+  headerDivider: { height: 1, backgroundColor: dark.lineSoft },
   headerName: { ...typography.h4, color: colors.textPrimary },
-  headerSub: { ...typography.bodySmall, color: colors.textSecondary },
+  headerSub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, marginTop: 1 },
+  avatar: { alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#fff', fontFamily: 'Sora-Bold' },
 
-  // Message list
-  list: {
-    paddingHorizontal: 12,
-    paddingVertical: 16,
-    gap: 6,
-    flexGrow: 1,
+  // Loading / empty
+  loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
+  emptyIcon: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: dark.bg2, alignItems: 'center', justifyContent: 'center',
+    marginBottom: 16,
   },
+  emptyTitle: { ...typography.h3, color: colors.textPrimary, textAlign: 'center' },
+  emptyBody: {
+    fontFamily: 'Sora-Regular', fontSize: 13, color: colors.textMuted,
+    textAlign: 'center', lineHeight: 19, marginTop: 8, maxWidth: 280,
+  },
+
+  // List
+  listContent: { paddingTop: 16, paddingHorizontal: 16 },
+
+  // Message row
+  msgRow: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 4 },
+  msgRowLeft: { justifyContent: 'flex-start', gap: 8 },
+  msgRowRight: { justifyContent: 'flex-end' },
+  msgAvatarSlot: { width: 28 },
 
   // Bubbles
-  bubbleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    marginVertical: 2,
-  },
-  bubbleRowMe: { justifyContent: 'flex-end' },
-  avatarSmall: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
-  },
-  avatarSmallText: { fontSize: 9, fontWeight: '800', color: '#fff' },
-  bubble: {
-    maxWidth: '75%',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingTop: 9,
-    paddingBottom: 7,
-  },
-  bubbleThem: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+  bubble: { maxWidth: '75%', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
+  bubbleCoach: {
+    backgroundColor: dark.bg2,
     borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: dark.lineSoft,
   },
-  bubbleMe: {
-    backgroundColor: colors.primary,
+  bubbleClient: {
+    backgroundColor: colors.accent,
     borderBottomRightRadius: 4,
   },
-  bubbleText: { ...typography.body, color: colors.textPrimary, lineHeight: 21 },
-  bubbleTextMe: { color: '#fff' },
+  bubbleText: {
+    fontFamily: 'Sora-Regular', fontSize: 14,
+    color: colors.textPrimary, lineHeight: 20,
+  },
+  bubbleTextCoach: { color: colors.textPrimary },
   bubbleTime: {
-    ...typography.caption,
-    fontSize: 10,
-    color: colors.textMuted,
-    marginTop: 3,
-    textAlign: 'left',
+    fontFamily: 'Sora-Regular', fontSize: 10,
+    color: 'rgba(255,255,255,0.6)', marginTop: 4, alignSelf: 'flex-end',
   },
-  bubbleTimeMe: { color: 'rgba(255,255,255,0.65)', textAlign: 'right' },
+  bubbleTimeCoach: { color: colors.textMuted },
 
-  // Empty state (inverted, so we flip it back)
-  emptyWrap: {
-    alignItems: 'center',
-    paddingVertical: 60,
-    gap: 10,
-    transform: [{ scaleY: -1 }],
-  },
-  emptyIcon: { fontSize: 48 },
-  emptyTitle: { ...typography.h4, color: colors.textSecondary },
-  emptySub: { ...typography.bodySmall, color: colors.textMuted },
-
-  // Input
+  // Input bar
   inputBar: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    padding: 10,
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    backgroundColor: colors.background,
+    flexDirection: 'row', alignItems: 'flex-end', gap: 10,
+    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: dark.bg0,
+    borderTopWidth: 1, borderTopColor: dark.lineSoft,
   },
-  input: {
+  textInput: {
     flex: 1,
-    minHeight: 42,
-    maxHeight: 110,
-    backgroundColor: colors.card,
-    borderRadius: 21,
+    backgroundColor: dark.bg1,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: dark.line,
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    ...typography.body,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 9,
+    fontFamily: 'Sora-Regular',
+    fontSize: 14,
     color: colors.textPrimary,
-    textAlignVertical: 'center',
+    maxHeight: 120,
   },
-  sendBtn: { width: 42, height: 42, borderRadius: 21, overflow: 'hidden' },
-  sendBtnInner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  sendBtn: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: colors.accent,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sendBtnDisabled: { backgroundColor: dark.bg2 },
 });

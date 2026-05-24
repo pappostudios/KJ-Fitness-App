@@ -1,657 +1,311 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// BookScreen.js — repurposed as the Video / Form Check screen
+// (matches client-screens-b.jsx VideoScreen from the prototype)
+import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Modal,
-  ActivityIndicator,
-  StyleSheet,
-  Alert,
-  Linking,
+  View, Text, ScrollView, FlatList, TouchableOpacity,
+  StyleSheet, StatusBar, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  doc,
-  getDoc,
-  runTransaction,
-  updateDoc,
-  addDoc,
-  serverTimestamp,
+  collection, query, where, orderBy, onSnapshot,
 } from 'firebase/firestore';
-import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
-import { useCoachSettings } from '../../hooks/useCoachSettings';
-import { sendPushNotification } from '../../utils/sendPushNotification';
-import { colors, gradients } from '../../theme/colors';
+import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function toISO(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+function Avatar({ initials, size = 28 }) {
+  return (
+    <LinearGradient
+      colors={gradients.avatar}
+      style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}
+    >
+      <Text style={[styles.avatarText, { fontSize: size * 0.36 }]}>{initials}</Text>
+    </LinearGradient>
+  );
 }
 
-function buildDays(count = 14) {
-  const days = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  for (let i = 0; i < count; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    days.push({
-      iso: toISO(d),
-      dayName: d.toLocaleDateString('he-IL', { weekday: 'short' }),
-      dayNum: d.getDate(),
-      monthName: d.toLocaleDateString('he-IL', { month: 'short' }),
-      isToday: i === 0,
-    });
-  }
-  return days;
+function Eyebrow({ children, accent, style }) {
+  return (
+    <Text style={[styles.eyebrow, accent && { color: colors.accent }, style]}>
+      {children}
+    </Text>
+  );
 }
 
-function formatDateLong(iso) {
-  const d = new Date(iso + 'T00:00:00');
-  return d.toLocaleDateString('he-IL', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
+function MiniStat({ label, value, accent }) {
+  return (
+    <View style={[styles.miniStat, accent && styles.miniStatAccent]}>
+      <Eyebrow accent={accent}>{label}</Eyebrow>
+      <Text style={[styles.miniStatValue, accent && { color: colors.accent }]}>
+        {value}
+      </Text>
+    </View>
+  );
 }
 
-// ── Session reminder scheduler ────────────────────────────────────────────────
-
-async function scheduleSessionReminders(dateISO, time) {
-  try {
-    // expo-notifications is disabled in Expo Go (SDK 53+).
-    // This function is a no-op until a dev build is used.
-    return;
-    // eslint-disable-next-line no-unreachable
-    const Notifications = require('expo-notifications');
-    const [h, m] = time.split(':').map(Number);
-    const sessionDate = new Date(dateISO + 'T00:00:00');
-    sessionDate.setHours(h, m, 0, 0);
-    const now = Date.now();
-    const sessionMs = sessionDate.getTime();
-
-    const remind24h = new Date(sessionMs - 24 * 60 * 60 * 1000);
-    const remind1h  = new Date(sessionMs -      60 * 60 * 1000);
-
-    if (remind24h.getTime() > now) {
-      await Notifications.scheduleNotificationAsync({
-        content: { title: '⏰ תזכורת לאימון מחר', body: `יש לך אימון מחר בשעה ${time}. אל תשכחי!`, sound: true },
-        trigger: { date: remind24h },
-      });
-    }
-    if (remind1h.getTime() > now) {
-      await Notifications.scheduleNotificationAsync({
-        content: { title: '🏃 האימון שלך בעוד שעה!', body: `בשעה ${time} — התכוני!`, sound: true },
-        trigger: { date: remind1h },
-      });
-    }
-  } catch {
-    // Non-critical
-  }
+function EmptyState() {
+  return (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIcon}>
+        <Ionicons name="videocam-outline" size={28} color={colors.textMuted} />
+      </View>
+      <Text style={styles.emptyTitle}>No videos yet</Text>
+      <Text style={styles.emptyBody}>
+        Record a working set and Kirsten will review it. Side angle gives the best feedback.
+      </Text>
+    </View>
+  );
 }
-
-// ── Payment status helpers ────────────────────────────────────────────────────
-
-const PAYMENT_LABEL = {
-  unpaid: 'לא שולם',
-  pending: 'ממתין לאישור',
-  paid: 'שולם ✓',
-};
-
-const PAYMENT_COLOR = {
-  unpaid: colors.error,
-  pending: colors.warning,
-  paid: colors.success,
-};
-
-// ── Main Component ────────────────────────────────────────────────────────────
 
 export default function BookScreen() {
-  const { user, profile } = useAuth();
-  const { settings } = useCoachSettings();
+  const { user } = useAuth();
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const [days] = useState(() => buildDays(14));
-  const [selectedDay, setSelectedDay] = useState(() => buildDays(14)[0]);
-  const [slots, setSlots] = useState([]);
-  const [myBookings, setMyBookings] = useState([]);
-  const [loadingSlots, setLoadingSlots] = useState(true);
-  const [loadingBookings, setLoadingBookings] = useState(true);
-  const [selectedSlot, setSelectedSlot] = useState(null);
-  const [booking, setBooking] = useState(false);
-
-  // ── Live: available slots for selected day ────────────────────────────────
-  useEffect(() => {
-    setLoadingSlots(true);
-    const q = query(
-      collection(db, 'slots'),
-      where('date', '==', selectedDay.iso),
-      where('isBooked', '==', false),
-      orderBy('time', 'asc')
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      setSlots(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setLoadingSlots(false);
-    });
-    return unsub;
-  }, [selectedDay.iso]);
-
-  // ── Live: my upcoming confirmed bookings ──────────────────────────────────
   useEffect(() => {
     if (!user) return;
-    const today = toISO(new Date());
     const q = query(
-      collection(db, 'bookings'),
+      collection(db, 'videos'),
       where('clientId', '==', user.uid),
-      where('date', '>=', today),
-      where('status', '==', 'confirmed'),
-      orderBy('date', 'asc'),
-      orderBy('time', 'asc')
+      orderBy('createdAt', 'desc'),
     );
-    const unsub = onSnapshot(q, (snap) => {
-      setMyBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setLoadingBookings(false);
+    return onSnapshot(q, (snap) => {
+      setVideos(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setLoading(false);
     });
-    return unsub;
   }, [user]);
 
-  // ── Book a slot (transactional — prevents double-booking) ─────────────────
-  const confirmBooking = useCallback(async () => {
-    if (!selectedSlot || !user) return;
-    setBooking(true);
-    try {
-      const slotRef = doc(db, 'slots', selectedSlot.id);
-      await runTransaction(db, async (tx) => {
-        const slotSnap = await tx.get(slotRef);
-        if (!slotSnap.exists() || slotSnap.data().isBooked) {
-          throw new Error('slot_taken');
-        }
-        // Mark slot as booked
-        tx.update(slotRef, {
-          isBooked: true,
-          bookedBy: user.uid,
-          bookedByName: profile?.name ?? user.email,
-        });
-        // Create booking record with paymentStatus
-        const bookingRef = doc(collection(db, 'bookings'));
-        tx.set(bookingRef, {
-          slotId: selectedSlot.id,
-          clientId: user.uid,
-          clientName: profile?.name ?? user.email,
-          date: selectedSlot.date,
-          time: selectedSlot.time,
-          duration: selectedSlot.duration,
-          status: 'confirmed',
-          paymentStatus: 'unpaid',
-          price: settings.sessionPrice || '',
-          createdAt: serverTimestamp(),
-        });
-      });
-      // Notify coach about new booking
-      const coachSnap = await getDoc(doc(db, 'settings', 'coach'));
-      const coachToken = coachSnap.exists() ? coachSnap.data().pushToken : null;
-      await sendPushNotification(
-        coachToken,
-        '📅 הזמנה חדשה!',
-        `${profile?.name ?? 'לקוח'} קבע אימון ל-${selectedSlot.date} בשעה ${selectedSlot.time}`,
-        { screen: 'Schedule' }
-      );
+  const pending = videos.filter((v) => v.status === 'pending').length;
+  const reviewed = videos.filter((v) => v.status === 'reviewed').length;
 
-      // Schedule local reminder notifications for the client
-      await scheduleSessionReminders(selectedSlot.date, selectedSlot.time, profile?.name);
+  const renderVideo = ({ item, index }) => {
+    const isReviewed = item.status === 'reviewed';
+    const isGreen = item.rating === 'green';
 
-      setSelectedSlot(null);
-    } catch (err) {
-      if (err.message === 'slot_taken') {
-        Alert.alert('המקום כבר נלקח', 'מישהו הזמין את השעה הזו. בחר מועד אחר.');
-      } else {
-        Alert.alert('שגיאה', 'לא הצלחנו לסיים את ההזמנה. נסה שוב.');
-      }
-    } finally {
-      setBooking(false);
-    }
-  }, [selectedSlot, user, profile, settings.sessionPrice]);
+    return (
+      <TouchableOpacity style={styles.videoCard} activeOpacity={0.8}>
+        <View style={styles.videoCardInner}>
+          {/* Thumbnail */}
+          <View style={styles.videoThumb}>
+            <Ionicons name="play-circle-outline" size={22} color={colors.textMuted} />
+            {item.length && (
+              <View style={styles.durationBadge}>
+                <Text style={styles.durationText}>{item.length}</Text>
+              </View>
+            )}
+          </View>
 
-  // ── Cancel a booking ──────────────────────────────────────────────────────
-  const cancelBooking = useCallback((booking) => {
-    Alert.alert(
-      'ביטול אימון',
-      `האם לבטל את האימון בתאריך ${formatDateLong(booking.date)} בשעה ${booking.time}?`,
-      [
-        { text: 'לא', style: 'cancel' },
-        {
-          text: 'כן, בטל',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const bookingRef = doc(db, 'bookings', booking.id);
-              const slotRef = doc(db, 'slots', booking.slotId);
-              await runTransaction(db, async (tx) => {
-                tx.update(bookingRef, { status: 'cancelled', cancelledAt: serverTimestamp() });
-                // Free the slot so others can book it
-                tx.update(slotRef, {
-                  isBooked: false,
-                  bookedBy: null,
-                  bookedByName: null,
-                });
-              });
-              // Notify coach
-              const coachSnap = await getDoc(doc(db, 'settings', 'coach'));
-              const coachToken = coachSnap.exists() ? coachSnap.data().pushToken : null;
-              await sendPushNotification(
-                coachToken,
-                '❌ ביטול אימון',
-                `${profile?.name ?? 'לקוח'} ביטל את האימון ל-${booking.date} בשעה ${booking.time}`,
-                { screen: 'Schedule' }
-              );
-            } catch {
-              Alert.alert('שגיאה', 'לא הצלחנו לבטל את האימון. נסה שוב.');
-            }
-          },
-        },
-      ]
-    );
-  }, [profile]);
-
-  // ── Mark payment as pending after opening Bit ─────────────────────────────
-  const handlePayWithBit = useCallback(async (bookingId) => {
-    const bitLink = settings.bitLink;
-    if (!bitLink) {
-      Alert.alert('קישור Bit חסר', 'המאמנת טרם הגדירה קישור Bit. צרי קשר איתה ישירות.');
-      return;
-    }
-    try {
-      await Linking.openURL(bitLink);
-      // Mark as pending once client taps the button
-      await updateDoc(doc(db, 'bookings', bookingId), { paymentStatus: 'pending' });
-    } catch {
-      Alert.alert('שגיאה', 'לא הצלחנו לפתוח את Bit. נסי שוב.');
-    }
-  }, [settings.bitLink]);
-
-  // ── Render ────────────────────────────────────────────────────────────────
-
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-
-        {/* Header */}
-        <LinearGradient colors={gradients.hero} style={styles.header}>
-          <Text style={styles.headerTitle}>קביעת אימון</Text>
-          <Text style={styles.headerSub}>בחר יום ושעה פנויה</Text>
-        </LinearGradient>
-
-        {/* Day strip */}
-        <View style={styles.dayStripContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.dayStrip}
-          >
-            {days.map((day) => {
-              const isSelected = day.iso === selectedDay.iso;
-              return (
-                <TouchableOpacity
-                  key={day.iso}
-                  style={[styles.dayChip, isSelected && styles.dayChipSelected]}
-                  onPress={() => setSelectedDay(day)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.dayName, isSelected && styles.dayNameSelected]}>
-                    {day.dayName}
-                  </Text>
-                  <Text style={[styles.dayNum, isSelected && styles.dayNumSelected]}>
-                    {day.dayNum}
-                  </Text>
-                  {day.isToday && (
-                    <View style={[styles.todayDot, isSelected && styles.todayDotSelected]} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* Available slots */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {selectedDay.isToday
-              ? 'היום'
-              : `${selectedDay.dayName} ${selectedDay.dayNum} ${selectedDay.monthName}`}
-          </Text>
-
-          {loadingSlots ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
-          ) : slots.length === 0 ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyIcon}>📭</Text>
-              <Text style={styles.emptyTitle}>אין שעות פנויות</Text>
-              <Text style={styles.emptySub}>נסה יום אחר</Text>
-            </View>
-          ) : (
-            slots.map((slot) => (
-              <SlotCard key={slot.id} slot={slot} onBook={() => setSelectedSlot(slot)} />
-            ))
-          )}
-        </View>
-
-        {/* My upcoming sessions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>האימונים הקרובים שלי</Text>
-          {loadingBookings ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} />
-          ) : myBookings.length === 0 ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptySub}>עוד אין אימונים קבועים</Text>
-            </View>
-          ) : (
-            myBookings.map((b) => (
-              <BookingCard
-                key={b.id}
-                booking={b}
-                onPayWithBit={() => handlePayWithBit(b.id)}
-                onCancel={() => cancelBooking(b)}
-              />
-            ))
-          )}
-        </View>
-
-        <View style={{ height: 32 }} />
-      </ScrollView>
-
-      {/* Booking confirmation modal */}
-      <Modal
-        visible={!!selectedSlot}
-        transparent
-        animationType="slide"
-        onRequestClose={() => !booking && setSelectedSlot(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>אישור הזמנה</Text>
-
-            {selectedSlot && (
-              <>
-                <View style={styles.modalInfo}>
-                  <ModalRow icon="calendar-outline" label={formatDateLong(selectedSlot.date)} />
-                  <ModalRow icon="time-outline" label={selectedSlot.time} />
-                  <ModalRow icon="timer-outline" label={`${selectedSlot.duration} דקות`} />
-                  {settings.sessionPrice ? (
-                    <ModalRow icon="cash-outline" label={`₪${settings.sessionPrice}`} />
-                  ) : null}
+          {/* Info */}
+          <View style={{ flex: 1 }}>
+            <View style={styles.videoTitleRow}>
+              <Text style={styles.videoTitle}>{item.exercise ?? 'Untitled'}</Text>
+              {item.status === 'pending' ? (
+                <View style={styles.chipWarn}>
+                  <Text style={styles.chipWarnText}>PENDING</Text>
                 </View>
+              ) : isGreen ? (
+                <View style={styles.chipOk}>
+                  <Text style={styles.chipOkText}>PR-WORTHY</Text>
+                </View>
+              ) : (
+                <View style={styles.chipAccent}>
+                  <Text style={styles.chipAccentText}>FORM CUE</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.videoDate}>{item.date ?? '—'}</Text>
 
-                <TouchableOpacity
-                  style={styles.confirmBtn}
-                  onPress={confirmBooking}
-                  disabled={booking}
-                  activeOpacity={0.85}
-                >
-                  <LinearGradient colors={gradients.primary} style={styles.confirmGradient}>
-                    {booking
-                      ? <ActivityIndicator color="#fff" />
-                      : <Text style={styles.confirmText}>אישור הזמנה ✓</Text>
-                    }
-                  </LinearGradient>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => setSelectedSlot(null)}
-                  disabled={booking}
-                >
-                  <Text style={styles.cancelText}>ביטול</Text>
-                </TouchableOpacity>
-              </>
+            {/* KJ reply */}
+            {item.kjReply && (
+              <View style={styles.kjReply}>
+                <Avatar initials="KJ" size={20} />
+                <Text style={styles.kjReplyText} numberOfLines={3}>
+                  {item.kjReply}
+                </Text>
+              </View>
             )}
           </View>
         </View>
-      </Modal>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+
+        {/* Header */}
+        <View style={styles.screenHeader}>
+          <Eyebrow>VIDEO REVIEW</Eyebrow>
+          <Text style={styles.screenTitle}>Form check</Text>
+        </View>
+
+        {/* Upload CTA card */}
+        <View style={styles.sectionPad}>
+          <View style={styles.ctaCard}>
+            <View style={styles.ctaCardTop}>
+              <LinearGradient colors={gradients.primary} style={styles.ctaIcon}>
+                <Ionicons name="videocam" size={24} color={colors.accentInk} />
+              </LinearGradient>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ctaTitle}>Send a lift to Kirsten</Text>
+                <Text style={styles.ctaSub}>≤ 60s · she'll reply within 24h</Text>
+              </View>
+            </View>
+            <View style={styles.ctaCardDivider} />
+            <View style={styles.ctaBtnRow}>
+              <TouchableOpacity style={styles.ctaBtn} activeOpacity={0.75}>
+                <Ionicons name="radio-button-on" size={16} color={colors.textPrimary} />
+                <Text style={styles.ctaBtnText}>Record</Text>
+              </TouchableOpacity>
+              <View style={styles.ctaBtnDivider} />
+              <TouchableOpacity style={styles.ctaBtn} activeOpacity={0.75}>
+                <Ionicons name="cloud-upload-outline" size={16} color={colors.textPrimary} />
+                <Text style={styles.ctaBtnText}>Upload</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Stats row */}
+        <View style={styles.statsRow}>
+          <MiniStat label="SENT" value={videos.length} />
+          <MiniStat label="PENDING" value={pending} accent={pending > 0} />
+          <MiniStat label="REVIEWED" value={reviewed} />
+        </View>
+
+        {/* Video list */}
+        <View style={styles.sectionPad}>
+          <Eyebrow style={{ marginBottom: 12 }}>YOUR VIDEOS</Eyebrow>
+          {loading ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator color={colors.accent} />
+            </View>
+          ) : videos.length === 0 ? (
+            <EmptyState />
+          ) : (
+            videos.map((v, i) => renderVideo({ item: v, index: i }))
+          )}
+        </View>
+
+        <View style={{ height: 24 }} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function SlotCard({ slot, onBook }) {
-  return (
-    <View style={styles.slotCard}>
-      <View style={styles.slotLeft}>
-        <Text style={styles.slotTime}>{slot.time}</Text>
-        <Text style={styles.slotDuration}>{slot.duration} דקות</Text>
-      </View>
-      <TouchableOpacity style={styles.bookBtn} onPress={onBook} activeOpacity={0.8}>
-        <LinearGradient colors={gradients.primary} style={styles.bookBtnGradient}>
-          <Text style={styles.bookBtnText}>הזמן</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function BookingCard({ booking, onPayWithBit, onCancel }) {
-  const dateStr = formatDateLong(booking.date);
-  const payStatus = booking.paymentStatus || 'unpaid';
-  const isPaid = payStatus === 'paid';
-
-  return (
-    <View style={styles.bookingCard}>
-      <View style={styles.bookingAccent} />
-      <View style={styles.bookingBody}>
-        {/* Top row: info + payment badge */}
-        <View style={styles.bookingTopRow}>
-          <View style={styles.bookingInfo}>
-            <Text style={styles.bookingDate}>{dateStr}</Text>
-            <Text style={styles.bookingTime}>{booking.time} · {booking.duration} דקות</Text>
-            {booking.price ? (
-              <Text style={styles.bookingPrice}>₪{booking.price}</Text>
-            ) : null}
-          </View>
-          <View style={[
-            styles.payStatusBadge,
-            { borderColor: PAYMENT_COLOR[payStatus], backgroundColor: PAYMENT_COLOR[payStatus] + '22' },
-          ]}>
-            <Text style={[styles.payStatusText, { color: PAYMENT_COLOR[payStatus] }]}>
-              {PAYMENT_LABEL[payStatus]}
-            </Text>
-          </View>
-        </View>
-
-        {/* Action row */}
-        <View style={styles.bookingActions}>
-          {/* Bit pay button — only when not paid */}
-          {!isPaid && (
-            <TouchableOpacity
-              style={styles.bitPayBtn}
-              onPress={onPayWithBit}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.bitPayIcon}>💙</Text>
-              <Text style={styles.bitPayText}>Bit</Text>
-            </TouchableOpacity>
-          )}
-          {/* Cancel button */}
-          <TouchableOpacity
-            style={styles.cancelBookingBtn}
-            onPress={onCancel}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="close-circle-outline" size={14} color={colors.error} />
-            <Text style={styles.cancelBookingText}>ביטול</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function ModalRow({ icon, label }) {
-  return (
-    <View style={styles.modalRow}>
-      <Ionicons name={icon} size={20} color={colors.primary} />
-      <Text style={styles.modalLabel}>{label}</Text>
-    </View>
-  );
-}
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  scroll: { flex: 1 },
+  safeArea: { flex: 1, backgroundColor: dark.bg0 },
+  content: { paddingBottom: 24 },
 
-  header: { paddingTop: 20, paddingBottom: 24, paddingHorizontal: 20 },
-  headerTitle: { ...typography.h2, color: colors.textPrimary },
-  headerSub: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 4 },
-
-  // Day strip
-  dayStripContainer: { borderBottomWidth: 1, borderBottomColor: colors.border },
-  dayStrip: { paddingHorizontal: 12, paddingVertical: 12, gap: 8 },
-  dayChip: {
-    width: 52,
-    paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    alignItems: 'center',
-    gap: 4,
+  eyebrow: {
+    fontFamily: 'Sora-SemiBold',
+    fontSize: 10.5, letterSpacing: 1.89, textTransform: 'uppercase',
+    color: colors.textMuted,
   },
-  dayChipSelected: { backgroundColor: colors.primaryGlow, borderColor: colors.primary },
-  dayName: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
-  dayNameSelected: { color: colors.primary },
-  dayNum: { ...typography.h4, color: colors.textPrimary },
-  dayNumSelected: { color: colors.primary },
-  todayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.textMuted },
-  todayDotSelected: { backgroundColor: colors.primary },
+  avatar: { alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: '#fff', fontFamily: 'Sora-Bold' },
 
-  // Sections
-  section: { padding: 16, gap: 10 },
-  sectionTitle: { ...typography.h4, color: colors.textPrimary, marginBottom: 4 },
+  // Header
+  screenHeader: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 4 },
+  screenTitle: { ...typography.h1, color: colors.textPrimary, marginTop: 4 },
 
-  // Empty state
-  empty: { alignItems: 'center', paddingVertical: 28, gap: 8 },
-  emptyIcon: { fontSize: 38 },
-  emptyTitle: { ...typography.h4, color: colors.textSecondary },
-  emptySub: { ...typography.bodySmall, color: colors.textMuted },
+  sectionPad: { paddingHorizontal: 20, paddingTop: 18 },
 
-  // Slot card
-  slotCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    padding: 16,
-  },
-  slotLeft: { gap: 2 },
-  slotTime: { ...typography.h3, color: colors.textPrimary },
-  slotDuration: { ...typography.bodySmall, color: colors.textSecondary },
-  bookBtn: { borderRadius: 12, overflow: 'hidden' },
-  bookBtnGradient: { paddingHorizontal: 24, paddingVertical: 10 },
-  bookBtnText: { ...typography.button, color: '#fff' },
-
-  // Booking card
-  bookingCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
+  // Upload CTA
+  ctaCard: {
+    backgroundColor: dark.bg1,
+    borderRadius: 20, borderWidth: 1,
+    borderColor: 'rgba(229,57,53,0.35)',
     overflow: 'hidden',
   },
-  bookingAccent: { width: 4, alignSelf: 'stretch', backgroundColor: colors.primary },
-  bookingBody: { flex: 1, padding: 12, gap: 10 },
-  bookingTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
-  bookingInfo: { flex: 1, gap: 3 },
-  bookingDate: { ...typography.h4, color: colors.textPrimary },
-  bookingTime: { ...typography.bodySmall, color: colors.textSecondary },
-  bookingPrice: { ...typography.caption, color: colors.primary, fontWeight: '700', marginTop: 2 },
-  bookingActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  ctaCardTop: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 18 },
+  ctaIcon: {
+    width: 56, height: 56, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  ctaTitle: { fontFamily: 'Sora-Bold', fontSize: 15, color: colors.textPrimary },
+  ctaSub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  ctaCardDivider: { height: 1, backgroundColor: dark.lineSoft },
+  ctaBtnRow: { flexDirection: 'row' },
+  ctaBtn: {
+    flex: 1, height: 48,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  ctaBtnDivider: { width: 1, backgroundColor: dark.lineSoft },
+  ctaBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 13, color: colors.textPrimary },
 
-  // Payment status badge
-  payStatusBadge: {
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    alignSelf: 'flex-start',
+  // Stats
+  statsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingTop: 16 },
+  miniStat: {
+    flex: 1, padding: 14, borderRadius: 14,
+    backgroundColor: dark.bg1, borderWidth: 1, borderColor: dark.lineSoft,
   },
-  payStatusText: { ...typography.caption, fontWeight: '700', fontSize: 11 },
+  miniStatAccent: {
+    backgroundColor: 'rgba(229,57,53,0.08)',
+    borderColor: 'rgba(229,57,53,0.3)',
+  },
+  miniStatValue: {
+    fontFamily: 'JetBrainsMono-Medium', fontSize: 22, fontWeight: '700',
+    color: colors.textPrimary, marginTop: 4,
+  },
 
-  // Bit pay button
-  bitPayBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.bit,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  // Loading / empty
+  loadingRow: { height: 80, alignItems: 'center', justifyContent: 'center' },
+  emptyState: {
+    padding: 36, alignItems: 'center',
+    borderWidth: 1, borderStyle: 'dashed', borderColor: dark.line, borderRadius: 16,
   },
-  bitPayIcon: { fontSize: 13 },
-  bitPayText: { ...typography.caption, color: '#fff', fontWeight: '700' },
+  emptyIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: dark.bg2, alignItems: 'center', justifyContent: 'center',
+    marginBottom: 14,
+  },
+  emptyTitle: { ...typography.h4, color: colors.textPrimary, textAlign: 'center' },
+  emptyBody: {
+    fontFamily: 'Sora-Regular', fontSize: 12.5, color: colors.textMuted,
+    textAlign: 'center', lineHeight: 18, marginTop: 8, maxWidth: 280,
+  },
 
-  // Cancel booking button
-  cancelBookingBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.error + '15',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.error + '40',
+  // Video cards
+  videoCard: {
+    backgroundColor: dark.bg1,
+    borderRadius: 16, borderWidth: 1, borderColor: dark.lineSoft,
+    overflow: 'hidden', marginBottom: 12,
   },
-  cancelBookingText: { ...typography.caption, color: colors.error, fontWeight: '600' },
+  videoCardInner: { flexDirection: 'row', gap: 12, padding: 14 },
+  videoThumb: {
+    width: 72, height: 92, borderRadius: 10,
+    backgroundColor: dark.bg2, borderWidth: 1, borderColor: dark.lineSoft,
+    alignItems: 'center', justifyContent: 'center',
+    position: 'relative',
+  },
+  durationBadge: {
+    position: 'absolute', bottom: 4, right: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1,
+  },
+  durationText: { fontFamily: 'JetBrainsMono-Regular', fontSize: 9, color: '#fff' },
+  videoTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
+  videoTitle: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary, flex: 1 },
+  videoDate: { fontFamily: 'Sora-Regular', fontSize: 11, color: colors.textMuted, marginTop: 2 },
 
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalSheet: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-    gap: 16,
+  kjReply: {
+    flexDirection: 'row', gap: 8, alignItems: 'flex-start',
+    marginTop: 10, backgroundColor: dark.bg2,
+    borderRadius: 10, padding: 10,
   },
-  modalHandle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-    marginBottom: 8,
-  },
-  modalTitle: { ...typography.h3, color: colors.textPrimary, textAlign: 'center' },
-  modalInfo: {
-    backgroundColor: colors.backgroundAlt,
-    borderRadius: 16,
-    padding: 16,
-    gap: 14,
-  },
-  modalRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  modalLabel: { ...typography.body, color: colors.textPrimary },
-  confirmBtn: { borderRadius: 14, overflow: 'hidden', marginTop: 4 },
-  confirmGradient: { padding: 16, alignItems: 'center' },
-  confirmText: { ...typography.button, color: '#fff' },
-  cancelBtn: { alignItems: 'center', padding: 12 },
-  cancelText: { ...typography.button, color: colors.textSecondary },
+  kjReplyText: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textSecondary, flex: 1, lineHeight: 17 },
+
+  // Chips
+  chipAccent: { backgroundColor: 'rgba(229,57,53,0.16)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  chipAccentText: { fontFamily: 'Sora-SemiBold', fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.accent },
+  chipOk: { backgroundColor: 'rgba(75,200,120,0.16)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  chipOkText: { fontFamily: 'Sora-SemiBold', fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.success },
+  chipWarn: { backgroundColor: 'rgba(203,176,42,0.16)', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  chipWarnText: { fontFamily: 'Sora-SemiBold', fontSize: 9, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.warning },
 });

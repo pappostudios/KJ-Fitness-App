@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -28,19 +28,85 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [role, setRole] = useState(null);      // 'coach' | 'client'
-  const [status, setStatus] = useState(null);  // 'pending' | 'approved' | 'rejected'
+  const [role, setRole] = useState(null);
+  const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    let unsubProfile = null;
+  // When a sign-in method is running, skip onAuthStateChanged so they don't race.
+  const skipAuthHandlerRef = useRef(false);
+  // Holds the active Firestore unsub so we can clean it up from anywhere.
+  const unsubProfileRef = useRef(null);
 
-    const unsubAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+  // ── Safe sign-out helper ─────────────────────────────────────────────────
+  // Resets all local state AND signs out of Firebase.
+  const _signOutAndReset = () => {
+    if (unsubProfileRef.current) {
+      unsubProfileRef.current();
+      unsubProfileRef.current = null;
+    }
+    setUser(null);
+    setProfile(null);
+    setRole(null);
+    setStatus(null);
+    setLoading(false);
+    signOut(auth).catch(() => {});
+  };
+
+  // ── Subscribe to Firestore profile in real time ──────────────────────────
+  function _subscribeToProfile(uid) {
+    if (unsubProfileRef.current) {
+      unsubProfileRef.current();
+      unsubProfileRef.current = null;
+    }
+
+    // Safety net: if Firestore never responds, sign out after 12 s
+    const safetyTimer = setTimeout(() => {
+      console.warn('[KJAuth] Profile load timed out — signing out');
+      if (!skipAuthHandlerRef.current) _signOutAndReset();
+      else setLoading(false); // during active sign-in, just unblock
+    }, 12000);
+
+    unsubProfileRef.current = onSnapshot(
+      doc(db, 'users', uid),
+      (snap) => {
+        if (snap.exists()) {
+          clearTimeout(safetyTimer);
+          const data = snap.data();
+          setProfile(data);
+          setRole('client');
+          setStatus(data.status);
+          setLoading(false);
+        } else if (!snap.metadata.fromCache) {
+          // Server confirmed: no Firestore profile.
+          // This is a ghost Firebase Auth account (failed sign-up in a previous session).
+          // Sign out completely so the user lands on the login screen.
+          clearTimeout(safetyTimer);
+          console.warn('[KJAuth] No profile found — signing out ghost account');
+          if (!skipAuthHandlerRef.current) {
+            _signOutAndReset();
+          }
+          // If skipAuthHandlerRef is true a sign-in method is handling it — leave it alone.
+        }
+        // fromCache + no doc: wait for server confirmation (don't act yet).
+      },
+      (err) => {
+        clearTimeout(safetyTimer);
+        console.warn('[KJAuth] Profile snapshot error:', err.code);
+        if (!skipAuthHandlerRef.current) setLoading(false);
+      }
+    );
+  }
+
+  useEffect(() => {
+    const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      // A sign-in method is running and owns all state updates — back off.
+      if (skipAuthHandlerRef.current) return;
+
       if (firebaseUser) {
         setUser(firebaseUser);
 
-        // Coaches bypass Firestore check entirely
+        // Coaches bypass Firestore entirely
         if (COACH_EMAILS.includes(firebaseUser.email?.toLowerCase())) {
           setRole('coach');
           setStatus('approved');
@@ -48,20 +114,15 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // Clients — listen to Firestore profile in real time
-        // (pending screen auto-unlocks the moment Kirsten approves)
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        unsubProfile = onSnapshot(userRef, (snap) => {
-          if (snap.exists()) {
-            const data = snap.data();
-            setProfile(data);
-            setRole('client');
-            setStatus(data.status);
-          }
-          setLoading(false);
-        });
+        // App restart: user was already authenticated — subscribe to their profile.
+        // If the profile doesn't exist, _subscribeToProfile will sign them out.
+        _subscribeToProfile(firebaseUser.uid);
       } else {
-        if (unsubProfile) unsubProfile();
+        // User signed out — clean up
+        if (unsubProfileRef.current) {
+          unsubProfileRef.current();
+          unsubProfileRef.current = null;
+        }
         setUser(null);
         setProfile(null);
         setRole(null);
@@ -72,13 +133,18 @@ export function AuthProvider({ children }) {
 
     return () => {
       unsubAuth();
-      if (unsubProfile) unsubProfile();
+      if (unsubProfileRef.current) {
+        unsubProfileRef.current();
+        unsubProfileRef.current = null;
+      }
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Email/password sign up ──────────────────────────────────────────────
   const signUp = async (email, password, name) => {
     setError(null);
+    skipAuthHandlerRef.current = true;
+    setLoading(true);
     try {
       const credential = await createUserWithEmailAndPassword(
         auth,
@@ -86,53 +152,114 @@ export function AuthProvider({ children }) {
         password
       );
       await _createPendingProfile(credential.user.uid, email.trim().toLowerCase(), name);
+      setUser(credential.user);
+      setProfile({ uid: credential.user.uid, name, email: email.trim().toLowerCase(), role: 'client', status: 'pending' });
+      setRole('client');
+      setStatus('pending');
+      _subscribeToProfile(credential.user.uid);
     } catch (err) {
       setError(getAuthError(err.code));
       throw err;
+    } finally {
+      skipAuthHandlerRef.current = false;
+      setLoading(false);
     }
   };
 
   // ── Email/password sign in ──────────────────────────────────────────────
   const signIn = async (email, password) => {
     setError(null);
+    skipAuthHandlerRef.current = true;
+    setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      const result = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      const firebaseUser = result.user;
+      setUser(firebaseUser);
+
+      if (COACH_EMAILS.includes(firebaseUser.email?.toLowerCase())) {
+        setRole('coach');
+        setStatus('approved');
+        return;
+      }
+
+      const snap = await _getDocWithTimeout(doc(db, 'users', firebaseUser.uid), 8000);
+      if (snap.exists()) {
+        const data = snap.data();
+        setProfile(data);
+        setRole('client');
+        setStatus(data.status);
+      }
+      _subscribeToProfile(firebaseUser.uid);
     } catch (err) {
       setError(getAuthError(err.code));
       throw err;
+    } finally {
+      skipAuthHandlerRef.current = false;
+      setLoading(false);
     }
   };
 
-  // ── Google sign in (called from LoginScreen with the id_token) ──────────
-  const signInWithGoogle = async (idToken) => {
+  // ── Google sign in / sign up ─────────────────────────────────────────────
+  // createIfNew = false  →  login screen: show error if no account exists
+  // createIfNew = true   →  sign-up screen: create pending profile if new
+  const signInWithGoogle = async (idToken, accessToken, createIfNew = false) => {
     setError(null);
+    skipAuthHandlerRef.current = true;
+    setLoading(true);
     try {
-      const credential = GoogleAuthProvider.credential(idToken);
-      const result = await signInWithCredential(auth, credential);
-      const { user: googleUser } = result;
+      const credential = GoogleAuthProvider.credential(idToken ?? null, accessToken ?? null);
+      const { user: googleUser } = await signInWithCredential(auth, credential);
       const email = googleUser.email?.toLowerCase();
 
       // Coaches get straight through — no Firestore needed
-      if (COACH_EMAILS.includes(email)) return;
+      if (COACH_EMAILS.includes(email)) {
+        setUser(googleUser);
+        setRole('coach');
+        setStatus('approved');
+        return;
+      }
 
-      // Check if this Google user already has a Firestore profile
-      const snap = await getDoc(doc(db, 'users', googleUser.uid));
+      // Fetch profile — cache-first so we don't hang on slow networks
+      const snap = await _getDocWithTimeout(doc(db, 'users', googleUser.uid), 8000);
+
+      if (!snap.exists() && !createIfNew) {
+        // Login attempt but no account found → clean up and tell the user
+        await signOut(auth).catch(() => {});
+        setError("No account found. Please sign up first.");
+        return;
+      }
+
+      setUser(googleUser);
+
       if (!snap.exists()) {
-        // First time — create pending profile
+        // Sign-up flow: create pending profile
         const name = googleUser.displayName || email.split('@')[0];
         await _createPendingProfile(googleUser.uid, email, name);
+        setProfile({ uid: googleUser.uid, name, email, role: 'client', status: 'pending' });
+        setRole('client');
+        setStatus('pending');
+      } else {
+        const data = snap.data();
+        setProfile(data);
+        setRole('client');
+        setStatus(data.status);
       }
-      // If profile exists, onAuthStateChanged listener picks it up automatically
+
+      // Subscribe for real-time status updates (e.g. when coach approves)
+      _subscribeToProfile(googleUser.uid);
     } catch (err) {
       setError(getAuthError(err.code));
       throw err;
+    } finally {
+      skipAuthHandlerRef.current = false;
+      setLoading(false);
     }
   };
 
   // ── Sign out ────────────────────────────────────────────────────────────
   const logOut = async () => {
     setError(null);
-    await signOut(auth);
+    _signOutAndReset();
   };
 
   // ── Password reset ──────────────────────────────────────────────────────
@@ -193,7 +320,17 @@ async function _createPendingProfile(uid, email, name) {
   });
 }
 
-// ── Firebase error messages (Hebrew) ─────────────────────────────────────
+// ── getDoc with a timeout so it never hangs forever ───────────────────────
+function _getDocWithTimeout(ref, ms) {
+  return Promise.race([
+    getDoc(ref),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(Object.assign(new Error('timeout'), { code: 'app/timeout' })), ms)
+    ),
+  ]);
+}
+
+// ── Firebase error messages ───────────────────────────────────────────────
 function getAuthError(code) {
   switch (code) {
     case 'auth/user-not-found':
@@ -210,6 +347,8 @@ function getAuthError(code) {
       return 'יותר מדי ניסיונות. נסה שוב מאוחר יותר.';
     case 'auth/network-request-failed':
       return 'בעיית רשת. בדוק את החיבור לאינטרנט.';
+    case 'app/timeout':
+      return 'הבקשה ארכה יותר מדי. נסה שוב.';
     default:
       return 'שגיאה. נסה שוב.';
   }

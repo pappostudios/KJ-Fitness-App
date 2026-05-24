@@ -18,5 +18,6 @@ web-build/
 setup-github.sh
 setup-github.ps1
 
-setup-github.sh
-setup-github.ps1
+# Firebase secrets
+google-services.json
+GoogleService-Info.plist

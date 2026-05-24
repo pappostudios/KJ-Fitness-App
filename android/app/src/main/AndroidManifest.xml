@@ -26,6 +26,13 @@
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="kjfitness"/>
       </intent-filter>
+      <!-- Google OAuth redirect handler — required for expo-auth-session Google Sign-In -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="com.googleusercontent.apps.525333297888-nmevu9b4vpjur32c4eqepvdt6nstes2g"/>
+      </intent-filter>
     </activity>
   </application>
 </manifest>

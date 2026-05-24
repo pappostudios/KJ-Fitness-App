@@ -153,7 +153,7 @@ export default function WeeklyPlansHistoryScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
       {/* ── Header ── */}
       <View style={styles.header}>

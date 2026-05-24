@@ -138,13 +138,13 @@ export default function WeeklyPlanCard({ onPress, onHistoryPress }) {
 
 const styles = StyleSheet.create({
   wrapper: {
-    borderRadius: 20,
+    borderRadius: 24,
     overflow: 'hidden',
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 6,
   },
   emptyWrapper: {
     backgroundColor: colors.card,
@@ -154,6 +154,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 32,
     gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 30,
+    elevation: 2,
   },
   emptyTitle: { ...typography.h4, color: colors.textSecondary },
   emptySub: { ...typography.caption, color: colors.textMuted },

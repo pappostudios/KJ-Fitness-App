@@ -33,7 +33,7 @@ function offsetDay(base, n) {
 // ── Workout type meta ─────────────────────────────────────────────────────────
 
 const TYPE_META = {
-  strength:    { label: 'כוח',    emoji: '💪', color: '#00BCD4' },
+  strength:    { label: 'כוח',    emoji: '💪', color: '#14B8A6' },
   cardio:      { label: 'קרדיו',  emoji: '🏃', color: '#FF5722' },
   flexibility: { label: 'גמישות', emoji: '🧘', color: '#9C27B0' },
   swimming:    { label: 'שחייה',  emoji: '🏊', color: '#2196F3' },
