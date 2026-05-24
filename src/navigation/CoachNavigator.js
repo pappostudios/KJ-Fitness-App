@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import ClientRequestsScreen from '../screens/coach/ClientRequestsScreen';
@@ -8,44 +9,32 @@ import ScheduleScreen from '../screens/coach/ScheduleScreen';
 import CoachMessagesNavigator from './CoachMessagesNavigator';
 import CoachClientsNavigator from './CoachClientsNavigator';
 import CoachHomeNavigator from './CoachHomeNavigator';
-import { colors } from '../theme/colors';
+import { colors, dark } from '../theme/colors';
 import { typography } from '../theme/typography';
 
 const Tab = createBottomTabNavigator();
 
-// Placeholder screens
-function PlaceholderScreen({ route }) {
-  return (
-    <View style={styles.placeholder}>
-      <Text style={styles.placeholderIcon}>🔧</Text>
-      <Text style={styles.placeholderText}>{route.name} — בקרוב</Text>
-    </View>
-  );
-}
-
-const ICONS = {
-  'בית': '🏠',
-  'לקוחות': '👥',
-  'לוח זמנים': '📅',
-  'הודעות': '💬',
-  'בקשות': '🔔',
-};
+const TABS = [
+  { name: 'Home',     icon: 'home-outline',         iconFocused: 'home' },
+  { name: 'Clients',  icon: 'people-outline',        iconFocused: 'people' },
+  { name: 'Schedule', icon: 'calendar-outline',      iconFocused: 'calendar' },
+  { name: 'Messages', icon: 'chatbubble-outline',    iconFocused: 'chatbubble' },
+  { name: 'Requests', icon: 'notifications-outline', iconFocused: 'notifications' },
+];
 
 export default function CoachNavigator() {
   const [pendingCount, setPendingCount] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
 
-  // Live count of pending join requests
   useEffect(() => {
-    const q = query(collection(db, 'pendingRequests'));
-    const unsub = onSnapshot(q, (snap) => setPendingCount(snap.size));
+    const unsub = onSnapshot(query(collection(db, 'pendingRequests')), (snap) =>
+      setPendingCount(snap.size),
+    );
     return unsub;
   }, []);
 
-  // Live total of unread messages across all conversations
   useEffect(() => {
-    const q = query(collection(db, 'conversations'));
-    const unsub = onSnapshot(q, (snap) => {
+    const unsub = onSnapshot(query(collection(db, 'conversations')), (snap) => {
       const total = snap.docs.reduce((sum, d) => sum + (d.data().unreadByCoach ?? 0), 0);
       setUnreadMessages(total);
     });
@@ -57,24 +46,23 @@ export default function CoachNavigator() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: styles.tabBar,
-        tabBarActiveTintColor: colors.tabActive,
+        tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.tabInactive,
         tabBarLabelStyle: styles.tabLabel,
-        tabBarIcon: ({ focused }) => {
-          const icon = ICONS[route.name] ?? '📌';
+        tabBarIcon: ({ focused, color }) => {
+          const tab = TABS.find((t) => t.name === route.name);
+          const iconName = focused ? tab?.iconFocused : tab?.icon;
           const showBadge =
-            (route.name === 'בקשות' && pendingCount > 0) ||
-            (route.name === 'הודעות' && unreadMessages > 0);
-          const badgeCount =
-            route.name === 'בקשות' ? pendingCount : unreadMessages;
+            (route.name === 'Requests' && pendingCount > 0) ||
+            (route.name === 'Messages' && unreadMessages > 0);
+          const badgeCount = route.name === 'Requests' ? pendingCount : unreadMessages;
+
           return (
             <View style={styles.iconWrap}>
-              <Text style={{ fontSize: 22, opacity: focused ? 1 : 0.5 }}>{icon}</Text>
+              <Ionicons name={iconName || 'ellipse-outline'} size={22} color={color} />
               {showBadge && (
                 <View style={styles.badge}>
-                  <Text style={styles.badgeText}>
-                    {badgeCount > 9 ? '9+' : badgeCount}
-                  </Text>
+                  <Text style={styles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
                 </View>
               )}
             </View>
@@ -82,26 +70,26 @@ export default function CoachNavigator() {
         },
       })}
     >
-      <Tab.Screen name="בית" component={CoachHomeNavigator} />
-      <Tab.Screen name="לקוחות" component={CoachClientsNavigator} />
-      <Tab.Screen name="לוח זמנים" component={ScheduleScreen} />
-      <Tab.Screen name="הודעות" component={CoachMessagesNavigator} />
-      <Tab.Screen name="בקשות" component={ClientRequestsScreen} />
+      <Tab.Screen name="Home"     component={CoachHomeNavigator} />
+      <Tab.Screen name="Clients"  component={CoachClientsNavigator} />
+      <Tab.Screen name="Schedule" component={ScheduleScreen} />
+      <Tab.Screen name="Messages" component={CoachMessagesNavigator} />
+      <Tab.Screen name="Requests" component={ClientRequestsScreen} />
     </Tab.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: colors.tabBar,
-    borderTopColor: colors.tabBarBorder,
+    backgroundColor: dark.bg1,
+    borderTopColor: dark.line,
     borderTopWidth: 1,
     paddingTop: 8,
     height: 70,
     paddingBottom: 12,
   },
   tabLabel: {
-    ...typography.caption,
+    fontFamily: 'Sora-SemiBold',
     fontSize: 10,
     marginTop: 2,
   },
@@ -112,28 +100,12 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: 'absolute',
-    top: -4,
-    right: -8,
+    top: -4, right: -10,
     backgroundColor: colors.error,
     borderRadius: 8,
-    minWidth: 16,
-    height: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    minWidth: 16, height: 16,
+    alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 4,
   },
-  badgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  placeholder: {
-    flex: 1,
-    backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  placeholderIcon: { fontSize: 48 },
-  placeholderText: { ...typography.h4, color: colors.textSecondary },
+  badgeText: { fontFamily: 'Sora-Bold', fontSize: 9, color: '#fff' },
 });
