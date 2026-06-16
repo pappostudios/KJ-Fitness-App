@@ -39,7 +39,7 @@
                 "autoVerify": true,
                 "data": [
                   {
-                    "scheme": "com.googleusercontent.apps.525333297888-nmevu9b4vpjur32c4eqepvdt6nstes2g",
+                    "scheme": "com.googleusercontent.apps.525333297888-s6qfi53grleplf0tbdh1gvddhh4jr3q3",
                     "host": "oauth2redirect"
                   }
                 ],
@@ -54,6 +54,12 @@
       ],
       "expo-font"
     ],
+    "updates": {
+      "url": "https://u.expo.dev/53c02adf-30fb-45b4-970d-ef07931554ae"
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
     "extra": {
       "eas": {
         "projectId": "53c02adf-30fb-45b4-970d-ef07931554ae"
