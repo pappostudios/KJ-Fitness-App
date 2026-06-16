@@ -13,14 +13,15 @@ import { useAuth } from '../../context/AuthContext';
 import { useCoachSettings } from '../../hooks/useCoachSettings';
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { useLanguage } from '../../context/LanguageContext';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const getGreeting = () => {
+const getGreeting = (t) => {
   const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
+  if (h < 12) return t('home.greetingMorning');
+  if (h < 17) return t('home.greetingAfternoon');
+  return t('home.greetingEvening');
 };
 
 function getWeekStart() {
@@ -61,6 +62,7 @@ function Avatar({ initials, size = 36 }) {
 export default function CoachHomeScreen({ navigation }) {
   const { user, profile } = useAuth();
   const { settings } = useCoachSettings();
+  const { t, isRTL } = useLanguage();
 
   const displayName = profile?.name || user?.displayName || 'Coach';
   const firstName = displayName.split(' ')[0];
@@ -123,25 +125,25 @@ export default function CoachHomeScreen({ navigation }) {
   // ── Stats config ────────────────────────────────────────────────────────────
   const stats = [
     {
-      label: 'Active Clients',
+      label: t('home.activeClients'),
       value: activeClients,
       icon: 'people-outline',
       accent: false,
     },
     {
-      label: 'Sessions This Week',
+      label: t('home.sessionsWeek'),
       value: sessionsThisWeek,
       icon: 'barbell-outline',
       accent: false,
     },
     {
-      label: 'New Messages',
+      label: t('home.newMessages'),
       value: newMessages,
       icon: 'chatbubble-outline',
       accent: newMessages > 0,
     },
     {
-      label: 'Monthly Revenue',
+      label: t('home.monthlyRevenue'),
       value: monthlyRevenue != null
         ? `₪${monthlyRevenue % 1 === 0 ? monthlyRevenue : monthlyRevenue.toFixed(0)}`
         : null,
@@ -151,9 +153,9 @@ export default function CoachHomeScreen({ navigation }) {
   ];
 
   const actions = [
-    { title: 'Content Library',   sub: 'Videos, articles and images',    icon: 'library-outline',  route: 'CoachLibrary' },
-    { title: 'Weekly Plan',        sub: "Publish this week's training plan", icon: 'calendar-outline', route: 'CoachWeeklyPlan' },
-    { title: 'Payment Settings',   sub: 'Bit link and session price',     icon: 'card-outline',     route: 'CoachSettings' },
+    { title: t('home.library'),   sub: t('home.librarySub'),    icon: 'library-outline',  route: 'CoachLibrary' },
+    { title: t('home.weeklyPlan'),        sub: t('home.weeklyPlanSub'), icon: 'calendar-outline', route: 'CoachWeeklyPlan' },
+    { title: t('home.paymentSettings'),   sub: t('home.paymentSettingsSub'),     icon: 'card-outline',     route: 'CoachSettings' },
   ];
 
   return (
@@ -168,7 +170,7 @@ export default function CoachHomeScreen({ navigation }) {
         {/* ── Greeting row ──────────────────────────────────────────────── */}
         <View style={styles.greetingRow}>
           <View>
-            <Eyebrow>{getGreeting().toUpperCase()}</Eyebrow>
+            <Eyebrow>{getGreeting(t).toUpperCase()}</Eyebrow>
             <Text style={styles.firstName}>{firstName}.</Text>
           </View>
           <View style={styles.greetingRight}>
@@ -185,13 +187,13 @@ export default function CoachHomeScreen({ navigation }) {
         <View style={styles.sectionPad}>
           <View style={styles.coachBadge}>
             <Ionicons name="shield-checkmark-outline" size={13} color={colors.accent} />
-            <Text style={styles.coachBadgeText}>COACH</Text>
+            <Text style={styles.coachBadgeText}>{t('home.eyebrow').toUpperCase()}</Text>
           </View>
         </View>
 
         {/* ── Stats grid ────────────────────────────────────────────────── */}
         <View style={styles.sectionPad}>
-          <Eyebrow style={{ marginBottom: 12 }}>OVERVIEW</Eyebrow>
+          <Eyebrow style={{ marginBottom: 12 }}>{t('home.overview').toUpperCase()}</Eyebrow>
           <View style={styles.statsGrid}>
             {stats.map((s) => (
               <View
@@ -214,7 +216,7 @@ export default function CoachHomeScreen({ navigation }) {
 
         {/* ── Quick actions ──────────────────────────────────────────────── */}
         <View style={styles.sectionPad}>
-          <Eyebrow style={{ marginBottom: 12 }}>QUICK ACTIONS</Eyebrow>
+          <Eyebrow style={{ marginBottom: 12 }}>{t('home.quickActions').toUpperCase()}</Eyebrow>
           <View style={styles.actionsCol}>
             {actions.map((a) => (
               <TouchableOpacity
@@ -230,7 +232,7 @@ export default function CoachHomeScreen({ navigation }) {
                   <Text style={styles.actionTitle}>{a.title}</Text>
                   <Text style={styles.actionSub}>{a.sub}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+                <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-forward'} size={16} color={colors.textMuted} />
               </TouchableOpacity>
             ))}
           </View>

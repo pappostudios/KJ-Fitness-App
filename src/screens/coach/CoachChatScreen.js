@@ -27,6 +27,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { sendPushNotification } from '../../utils/sendPushNotification';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -34,6 +35,7 @@ import { typography } from '../../theme/typography';
 export default function CoachChatScreen({ route, navigation }) {
   const { clientId, clientName } = route.params;
   const { user } = useAuth();
+  const { t, isRTL } = useLanguage();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -109,14 +111,14 @@ export default function CoachChatScreen({ route, navigation }) {
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Ionicons name="chevron-back" size={24} color={colors.primary} />
+          <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={24} color={colors.primary} />
         </TouchableOpacity>
         <View style={styles.clientAvatar}>
           <Text style={styles.clientAvatarText}>{getInitials(clientName)}</Text>
         </View>
         <View style={styles.headerText}>
           <Text style={styles.headerName}>{clientName}</Text>
-          <Text style={styles.headerSub}>לקוח/ה</Text>
+          <Text style={styles.headerSub}>{t('coachChat.clientLabel')}</Text>
         </View>
       </LinearGradient>
 
@@ -143,7 +145,7 @@ export default function CoachChatScreen({ route, navigation }) {
             inverted
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
-            ListEmptyComponent={<EmptyChat clientName={clientName} />}
+            ListEmptyComponent={<EmptyChat clientName={clientName} t={t} />}
             keyboardDismissMode="interactive"
           />
         )}
@@ -154,11 +156,11 @@ export default function CoachChatScreen({ route, navigation }) {
             style={styles.input}
             value={text}
             onChangeText={setText}
-            placeholder="הקלד הודעה..."
+            placeholder={t('coachChat.placeholder', { name: clientName })}
             placeholderTextColor={colors.textMuted}
             multiline
             maxLength={500}
-            textAlign="right"
+            textAlign={isRTL ? 'right' : 'left'}
           />
           <TouchableOpacity
             style={styles.sendBtn}
@@ -211,12 +213,12 @@ function MessageBubble({ message, isMe, clientName }) {
   );
 }
 
-function EmptyChat({ clientName }) {
+function EmptyChat({ clientName, t }) {
   return (
     <View style={styles.emptyWrap}>
       <Text style={styles.emptyIcon}>✉️</Text>
-      <Text style={styles.emptyTitle}>התחל שיחה</Text>
-      <Text style={styles.emptySub}>שלח הודעה ראשונה ל{clientName}</Text>
+      <Text style={styles.emptyTitle}>{t('coachChat.noMessages')}</Text>
+      <Text style={styles.emptySub}>{t('coachChat.noMessagesSub', { name: clientName })}</Text>
     </View>
   );
 }

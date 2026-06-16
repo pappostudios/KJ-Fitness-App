@@ -16,14 +16,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 const WEB_CLIENT_ID = '525333297888-d1h242a2i5dvj4tag6ib924oc0s836rh.apps.googleusercontent.com';
 
-// GoogleSignin is already configured in LoginScreen at module level,
-// but configure here too in case SignUp is reached without visiting Login.
-// Note: androidClientId is NOT a valid option — Android ID is read from google-services.json automatically.
 GoogleSignin.configure({
   webClientId: WEB_CLIENT_ID,
   offlineAccess: true,
@@ -31,6 +29,7 @@ GoogleSignin.configure({
 
 export default function SignUpScreen({ navigation }) {
   const { signUp, signInWithGoogle, error, setError } = useAuth();
+  const { t } = useLanguage();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -45,20 +44,16 @@ export default function SignUpScreen({ navigation }) {
     setGoogleLoading(true);
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      await GoogleSignin.signOut(); // clear cached account so picker always shows
+      await GoogleSignin.signOut();
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo?.data?.idToken ?? userInfo?.idToken ?? null;
-      if (!idToken) return; // cancelled or no token — just stop silently
-      await signInWithGoogle(idToken, null, true); // true = create profile if new
+      if (!idToken) return;
+      await signInWithGoogle(idToken, null, true);
     } catch (e) {
       if (e.code !== statusCodes.SIGN_IN_CANCELLED) {
         const code = e.code ?? 'no code';
         const msg = e.message ?? 'no message';
-        Alert.alert(
-          `Google Sign-In Error (code: ${code})`,
-          msg,
-          [{ text: 'OK' }]
-        );
+        Alert.alert(`Google Sign-In Error (code: ${code})`, msg, [{ text: 'OK' }]);
         setError && setError(`Google sign-in failed (code ${code}). Please try again.`);
       }
     } finally {
@@ -68,10 +63,10 @@ export default function SignUpScreen({ navigation }) {
 
   const handleSignUp = async () => {
     setError && setError(null);
-    if (!name.trim()) return setError && setError('Please enter your full name.');
-    if (!email.trim()) return setError && setError('Please enter your email.');
-    if (password.length < 6) return setError && setError('Password must be at least 6 characters.');
-    if (password !== confirm) return setError && setError('Passwords do not match.');
+    if (!name.trim()) return setError && setError(t('signup.nameRequired'));
+    if (!email.trim()) return setError && setError(t('signup.emailRequired'));
+    if (password.length < 6) return setError && setError(t('signup.passwordMinLength'));
+    if (password !== confirm) return setError && setError(t('signup.passwordMismatch'));
 
     setLoading(true);
     try {
@@ -100,13 +95,13 @@ export default function SignUpScreen({ navigation }) {
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
             <Ionicons name="chevron-back" size={20} color={colors.textPrimary} />
-            <Text style={styles.backText}>Back</Text>
+            <Text style={styles.backText}>{t('signup.back')}</Text>
           </TouchableOpacity>
           <LinearGradient colors={gradients.primary} style={styles.logoBadge}>
             <Ionicons name="flash" size={22} color={colors.accentInk} />
           </LinearGradient>
-          <Text style={styles.headerTitle}>Join KJ Fitness</Text>
-          <Text style={styles.headerSub}>Your request will be sent to Kirsten for approval</Text>
+          <Text style={styles.headerTitle}>{t('signup.title')}</Text>
+          <Text style={styles.headerSub}>{t('signup.subtitle')}</Text>
         </View>
 
         {/* Form card */}
@@ -123,7 +118,7 @@ export default function SignUpScreen({ navigation }) {
               ? <ActivityIndicator color="#333" />
               : <>
                   <Text style={styles.googleG}>G</Text>
-                  <Text style={styles.googleText}>Sign up with Google</Text>
+                  <Text style={styles.googleText}>{t('signup.google')}</Text>
                 </>
             }
           </TouchableOpacity>
@@ -131,38 +126,38 @@ export default function SignUpScreen({ navigation }) {
           {/* Divider */}
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerLabel}>or sign up with email</Text>
+            <Text style={styles.dividerLabel}>{t('signup.or')}</Text>
             <View style={styles.dividerLine} />
           </View>
 
           {/* Full name */}
           <Field
-            label="FULL NAME"
+            label={t('signup.fullName')}
             value={name}
-            onChangeText={(t) => { setName(t); setError && setError(null); }}
-            placeholder="Jane Smith"
+            onChangeText={(v) => { setName(v); setError && setError(null); }}
+            placeholder={t('signup.fullNamePlaceholder')}
             autoCapitalize="words"
           />
 
           {/* Email */}
           <Field
-            label="EMAIL"
+            label={t('signup.email')}
             value={email}
-            onChangeText={(t) => { setEmail(t); setError && setError(null); }}
-            placeholder="your@email.com"
+            onChangeText={(v) => { setEmail(v); setError && setError(null); }}
+            placeholder={t('signup.emailPlaceholder')}
             keyboardType="email-address"
             autoCapitalize="none"
           />
 
           {/* Password */}
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>PASSWORD</Text>
+            <Text style={styles.fieldLabel}>{t('signup.password')}</Text>
             <View style={styles.passwordRow}>
               <TextInput
                 style={[styles.input, styles.passwordInput]}
                 value={password}
-                onChangeText={(t) => { setPassword(t); setError && setError(null); }}
-                placeholder="At least 6 characters"
+                onChangeText={(v) => { setPassword(v); setError && setError(null); }}
+                placeholder="••••••••"
                 placeholderTextColor={colors.textMuted}
                 secureTextEntry={!showPassword}
                 returnKeyType="next"
@@ -175,10 +170,10 @@ export default function SignUpScreen({ navigation }) {
 
           {/* Confirm */}
           <Field
-            label="CONFIRM PASSWORD"
+            label={t('signup.confirmPassword')}
             value={confirm}
-            onChangeText={(t) => { setConfirm(t); setError && setError(null); }}
-            placeholder="Re-enter password"
+            onChangeText={(v) => { setConfirm(v); setError && setError(null); }}
+            placeholder="••••••••"
             secureTextEntry={!showPassword}
             returnKeyType="go"
             onSubmitEditing={handleSignUp}
@@ -187,9 +182,7 @@ export default function SignUpScreen({ navigation }) {
           {/* Info banner */}
           <View style={styles.infoBanner}>
             <Ionicons name="time-outline" size={14} color={colors.accent} />
-            <Text style={styles.infoText}>
-              After signing up, Kirsten will review your request. You'll get access as soon as she approves you.
-            </Text>
+            <Text style={styles.infoText}>{t('signup.subtitle')}</Text>
           </View>
 
           {/* Error */}
@@ -209,7 +202,7 @@ export default function SignUpScreen({ navigation }) {
             <LinearGradient colors={gradients.primary} style={styles.submitGradient}>
               {loading
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.submitText}>Send join request</Text>
+                : <Text style={styles.submitText}>{t('signup.submit')}</Text>
               }
             </LinearGradient>
           </TouchableOpacity>
@@ -217,8 +210,8 @@ export default function SignUpScreen({ navigation }) {
           {/* Back to login */}
           <TouchableOpacity style={styles.loginLink} onPress={() => navigation.goBack()} activeOpacity={0.7}>
             <Text style={styles.loginLinkText}>
-              Already have an account?{'  '}
-              <Text style={styles.loginLinkAccent}>Log in</Text>
+              {t('signup.alreadyMember')}{'  '}
+              <Text style={styles.loginLinkAccent}>{t('signup.loginHere')}</Text>
             </Text>
           </TouchableOpacity>
         </View>

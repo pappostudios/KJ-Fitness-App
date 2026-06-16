@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { colors, gradients, dark } from '../../theme/colors';
+import { useLanguage } from '../../context/LanguageContext';
 
 function Eyebrow({ children, style }) {
   return <Text style={[styles.eyebrow, style]}>{children}</Text>;
@@ -21,6 +22,7 @@ export default function ClientRequestsScreen() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(null);
+  const { t, isRTL } = useLanguage();
 
   useEffect(() => {
     const q = query(collection(db, 'pendingRequests'), orderBy('requestedAt', 'desc'));
@@ -39,7 +41,7 @@ export default function ClientRequestsScreen() {
       });
       await deleteDoc(doc(db, 'pendingRequests', request.uid));
     } catch {
-      Alert.alert('Error', 'Could not approve. Please try again.');
+      Alert.alert(t('common.error'), 'Could not approve. Please try again.');
     } finally {
       setProcessing(null);
     }
@@ -47,12 +49,12 @@ export default function ClientRequestsScreen() {
 
   const handleReject = (request) => {
     Alert.alert(
-      'Reject Request',
-      `Reject ${request.name}'s request?`,
+      t('requests.rejectTitle'),
+      t('requests.rejectConfirm', { name: request.name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Reject',
+          text: t('requests.reject'),
           style: 'destructive',
           onPress: async () => {
             setProcessing(request.uid);
@@ -63,7 +65,7 @@ export default function ClientRequestsScreen() {
               });
               await deleteDoc(doc(db, 'pendingRequests', request.uid));
             } catch {
-              Alert.alert('Error', 'Could not reject. Please try again.');
+              Alert.alert(t('common.error'), 'Could not reject. Please try again.');
             } finally {
               setProcessing(null);
             }
@@ -89,9 +91,9 @@ export default function ClientRequestsScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <Eyebrow>PENDING</Eyebrow>
+        <Eyebrow>{t('requests.eyebrow')}</Eyebrow>
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Join Requests</Text>
+          <Text style={styles.headerTitle}>{t('requests.title')}</Text>
           {requests.length > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{requests.length}</Text>
@@ -105,8 +107,8 @@ export default function ClientRequestsScreen() {
           <View style={styles.emptyIcon}>
             <Ionicons name="checkmark-circle-outline" size={28} color={colors.textMuted} />
           </View>
-          <Text style={styles.emptyTitle}>No pending requests</Text>
-          <Text style={styles.emptySub}>New client requests will appear here</Text>
+          <Text style={styles.emptyTitle}>{t('requests.noPending')}</Text>
+          <Text style={styles.emptySub}>{t('requests.noPendingSub')}</Text>
         </View>
       ) : (
         <FlatList
@@ -132,7 +134,7 @@ export default function ClientRequestsScreen() {
                 <Text style={styles.email} numberOfLines={1}>{item.email}</Text>
                 <Text style={styles.time}>
                   {item.requestedAt?.toDate
-                    ? formatDate(item.requestedAt.toDate())
+                    ? formatDate(item.requestedAt.toDate(), t)
                     : 'Pending...'}
                 </Text>
               </View>
@@ -168,12 +170,12 @@ export default function ClientRequestsScreen() {
   );
 }
 
-function formatDate(date) {
+function formatDate(date, t) {
   const now = new Date();
   const diff = Math.floor((now - date) / 1000 / 60);
-  if (diff < 1) return 'Just now';
-  if (diff < 60) return `${diff}m ago`;
-  if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+  if (diff < 1) return t('requests.justNow');
+  if (diff < 60) return t('requests.mAgo', { diff });
+  if (diff < 1440) return t('requests.hAgo', { diff: Math.floor(diff / 60) });
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 

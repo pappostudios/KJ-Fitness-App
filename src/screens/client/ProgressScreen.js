@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 // ── Sparkline (bar chart) ─────────────────────────────────────────────────────
 function Sparkline({ data = [], width = 110, height = 28 }) {
@@ -48,6 +49,7 @@ function Eyebrow({ children, accent, style }) {
 
 export default function ProgressScreen() {
   const { profile } = useAuth();
+  const { t, isRTL } = useLanguage();
   const week = profile?.currentWeek ?? null;
   const totalWeeks = profile?.totalWeeks ?? null;
 
@@ -68,33 +70,33 @@ export default function ProgressScreen() {
         {/* Screen header */}
         <View style={styles.screenHeader}>
           {week != null && totalWeeks != null && (
-            <Eyebrow>{`WEEK ${week} OF ${totalWeeks}`}</Eyebrow>
+            <Eyebrow>{t('progress.weekOf', { current: week, total: totalWeeks })}</Eyebrow>
           )}
-          <Text style={styles.screenTitle}>Progress</Text>
+          <Text style={styles.screenTitle}>{t('progress.title')}</Text>
         </View>
 
         {/* Big numbers row */}
         <View style={styles.kpiRow}>
           {/* Streak — accent card */}
           <View style={[styles.kpiCard, streak > 0 && styles.kpiCardAccent]}>
-            <Eyebrow accent={streak > 0}>STREAK</Eyebrow>
+            <Eyebrow accent={streak > 0}>{t('progress.streak')}</Eyebrow>
             <View style={styles.kpiValueRow}>
               <Text style={styles.kpiValueLarge}>{streak}</Text>
-              <Text style={styles.kpiUnit}>days</Text>
+              <Text style={styles.kpiUnit}>{t('progress.days')}</Text>
             </View>
             {streak > 0 ? (
               <View style={styles.kpiFlameRow}>
                 <Ionicons name="flame" size={12} color={colors.accent} />
-                <Text style={styles.kpiNote}>Keep it going!</Text>
+                <Text style={styles.kpiNote}>{t('progress.keepGoing')}</Text>
               </View>
             ) : (
-              <Text style={styles.kpiNote}>Start your first session</Text>
+              <Text style={styles.kpiNote}>{t('progress.startFirst')}</Text>
             )}
           </View>
 
           {/* Sessions */}
           <View style={styles.kpiCard}>
-            <Eyebrow>SESSIONS</Eyebrow>
+            <Eyebrow>{t('progress.sessions')}</Eyebrow>
             <View style={styles.kpiValueRow}>
               <Text style={styles.kpiValueMd}>{sessionsCompleted}</Text>
               {sessionsTotal > 0 && <Text style={styles.kpiUnit}>/ {sessionsTotal}</Text>}
@@ -113,8 +115,8 @@ export default function ProgressScreen() {
         {/* PRs */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Eyebrow>PERSONAL RECORDS</Eyebrow>
-            {PRS.length > 0 && <Text style={styles.sectionSub}>Last 10 weeks</Text>}
+            <Eyebrow>{t('progress.personalRecords')}</Eyebrow>
+            {PRS.length > 0 && <Text style={styles.sectionSub}>{t('progress.last10Weeks')}</Text>}
           </View>
           {PRS.length > 0 ? (
             <View style={styles.card}>
@@ -148,20 +150,20 @@ export default function ProgressScreen() {
           ) : (
             <View style={styles.emptyState}>
               <Ionicons name="trophy-outline" size={26} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>No personal records yet</Text>
-              <Text style={styles.emptyBody}>Your PRs will appear here once logged.</Text>
+              <Text style={styles.emptyTitle}>{t('progress.noPRs')}</Text>
+              <Text style={styles.emptyBody}>{t('progress.PRsSub')}</Text>
             </View>
           )}
         </View>
 
         {/* Body metrics */}
         <View style={styles.section}>
-          <Eyebrow style={{ marginBottom: 12 }}>BODY</Eyebrow>
+          <Eyebrow style={{ marginBottom: 12 }}>{t('progress.body')}</Eyebrow>
           {BODY.length > 0 ? (
             <View style={[styles.card, { padding: 16 }]}>
               <View style={styles.bodyMetaRow}>
                 <View>
-                  <Text style={styles.bodyMetaLabel}>Weight</Text>
+                  <Text style={styles.bodyMetaLabel}>{t('progress.weight')}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
                     <Text style={styles.bodyMetaValue}>{BODY[BODY.length - 1].weight}</Text>
                     <Text style={styles.bodyMetaUnit}>kg</Text>
@@ -183,7 +185,7 @@ export default function ProgressScreen() {
                 <Sparkline data={BODY.map((b) => b.weight)} width={300} height={40} />
                 <View style={styles.bodyWeekLabels}>
                   {BODY.map((b) => (
-                    <Text key={b.week} style={styles.bodyWeekLabel}>Wk {b.week}</Text>
+                    <Text key={b.week} style={styles.bodyWeekLabel}>{t('progress.week', { num: b.week })}</Text>
                   ))}
                 </View>
               </View>
@@ -191,8 +193,8 @@ export default function ProgressScreen() {
           ) : (
             <View style={styles.emptyState}>
               <Ionicons name="body-outline" size={26} color={colors.textMuted} />
-              <Text style={styles.emptyTitle}>No body data yet</Text>
-              <Text style={styles.emptyBody}>Weight and measurements will appear here.</Text>
+              <Text style={styles.emptyTitle}>{t('progress.noBody')}</Text>
+              <Text style={styles.emptyBody}>{t('progress.bodySub')}</Text>
             </View>
           )}
         </View>

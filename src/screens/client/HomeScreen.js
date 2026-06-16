@@ -17,6 +17,7 @@ import {
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { db } from '../../config/firebase';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -97,6 +98,7 @@ function Sparkline({ data = [], width = 80, height = 28 }) {
 
 export default function HomeScreen({ navigation }) {
   const { user, profile } = useAuth();
+  const { t, isRTL } = useLanguage();
 
   const displayName = profile?.name || user?.displayName || '';
   const firstName = displayName.split(' ')[0] || 'there';
@@ -178,7 +180,7 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.programMeta}>
               <Text style={styles.programLabel}>{profile.program}</Text>
               <Text style={styles.programWeek}>
-                Week {profile.currentWeek ?? 1}/{profile.totalWeeks ?? 12}
+                {t('clientHome.week', { current: profile.currentWeek ?? 1, total: profile.totalWeeks ?? 12 })}
               </Text>
             </View>
             <View style={styles.progressBarBg}>
@@ -206,7 +208,7 @@ export default function HomeScreen({ navigation }) {
               {/* Card body */}
               <View style={styles.heroCardBody}>
                 <Eyebrow accent>
-                  TODAY · {DAYS_SHORT[today.getDay()].toUpperCase()}
+                  {t('clientHome.today')} · {DAYS_SHORT[today.getDay()].toUpperCase()}
                 </Eyebrow>
                 <Text style={styles.sessionTitle}>{todayPlan.label}</Text>
                 <Text style={styles.sessionFocus}>{todayPlan.focus}</Text>
@@ -214,19 +216,19 @@ export default function HomeScreen({ navigation }) {
                   {todayPlan.exerciseCount != null && (
                     <View style={styles.sessionMetaItem}>
                       <Ionicons name="barbell-outline" size={14} color={colors.textMuted} />
-                      <Text style={styles.sessionMetaText}>{todayPlan.exerciseCount} exercises</Text>
+                      <Text style={styles.sessionMetaText}>{t('clientHome.exercises', { count: todayPlan.exerciseCount })}</Text>
                     </View>
                   )}
                   {todayPlan.estMin != null && (
                     <View style={styles.sessionMetaItem}>
                       <Ionicons name="time-outline" size={14} color={colors.textMuted} />
-                      <Text style={styles.sessionMetaText}>~{todayPlan.estMin} min</Text>
+                      <Text style={styles.sessionMetaText}>{t('clientHome.estMin', { min: todayPlan.estMin })}</Text>
                     </View>
                   )}
                 </View>
                 <TouchableOpacity style={styles.startBtn} activeOpacity={0.85}>
                   <LinearGradient colors={gradients.primary} style={styles.startBtnGradient}>
-                    <Text style={styles.startBtnText}>Start session</Text>
+                    <Text style={styles.startBtnText}>{t('clientHome.startSession')}</Text>
                     <Ionicons name="chevron-forward" size={18} color={colors.accentInk} />
                   </LinearGradient>
                 </TouchableOpacity>
@@ -234,10 +236,10 @@ export default function HomeScreen({ navigation }) {
             </View>
           ) : (
             <View style={styles.emptyCard}>
-              <Eyebrow style={{ marginBottom: 8 }}>TODAY · {DAYS_SHORT[today.getDay()].toUpperCase()}</Eyebrow>
+              <Eyebrow style={{ marginBottom: 8 }}>{t('clientHome.today')} · {DAYS_SHORT[today.getDay()].toUpperCase()}</Eyebrow>
               <Ionicons name="barbell-outline" size={28} color={colors.textMuted} style={{ marginBottom: 10 }} />
-              <Text style={styles.emptyCardTitle}>No session planned yet</Text>
-              <Text style={styles.emptyCardSub}>Your coach will add your plan here.</Text>
+              <Text style={styles.emptyCardTitle}>{t('clientHome.noSession')}</Text>
+              <Text style={styles.emptyCardSub}>{t('clientHome.noSessionSub')}</Text>
             </View>
           )}
         </View>
@@ -245,14 +247,14 @@ export default function HomeScreen({ navigation }) {
         {/* ── Coach note ─────────────────────────────────────────────────── */}
         {todayPlan?.coachNote ? (
           <View style={styles.sectionPad}>
-            <Eyebrow style={{ marginBottom: 10 }}>COACH NOTES</Eyebrow>
+            <Eyebrow style={{ marginBottom: 10 }}>{t('clientHome.coachNotes')}</Eyebrow>
             <View style={styles.card}>
               <View style={styles.coachNoteRow}>
                 <Avatar initials="KJ" size={40} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.coachNoteText}>{todayPlan.coachNote}</Text>
                   <TouchableOpacity style={styles.replyBtn} activeOpacity={0.75}>
-                    <Text style={styles.replyBtnText}>Reply</Text>
+                    <Text style={styles.replyBtnText}>{t('clientHome.reply')}</Text>
                     <Ionicons name="chatbubble-outline" size={13} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
@@ -263,7 +265,7 @@ export default function HomeScreen({ navigation }) {
 
         {/* ── Week strip ─────────────────────────────────────────────────── */}
         <View style={styles.sectionPad}>
-          <Eyebrow style={{ marginBottom: 10 }}>THIS WEEK</Eyebrow>
+          <Eyebrow style={{ marginBottom: 10 }}>{t('clientHome.thisWeek')}</Eyebrow>
           <View style={styles.weekGrid}>
             {weekDays.map((d, i) => (
               <View
@@ -294,7 +296,7 @@ export default function HomeScreen({ navigation }) {
 
         {/* ── PR glance ──────────────────────────────────────────────────── */}
         <View style={styles.sectionPad}>
-          <Eyebrow style={{ marginBottom: 10 }}>PERSONAL RECORDS</Eyebrow>
+          <Eyebrow style={{ marginBottom: 10 }}>{t('clientHome.personalRecords')}</Eyebrow>
           {PRS.length > 0 ? (
             <View style={styles.prGrid}>
               {PRS.map((p) => (
@@ -326,8 +328,8 @@ export default function HomeScreen({ navigation }) {
           ) : (
             <View style={styles.emptyCard}>
               <Ionicons name="trophy-outline" size={24} color={colors.textMuted} style={{ marginBottom: 8 }} />
-              <Text style={styles.emptyCardTitle}>No records yet</Text>
-              <Text style={styles.emptyCardSub}>PRs will appear here as you log them.</Text>
+              <Text style={styles.emptyCardTitle}>{t('clientHome.noPRs')}</Text>
+              <Text style={styles.emptyCardSub}>{t('clientHome.PRsSub')}</Text>
             </View>
           )}
         </View>

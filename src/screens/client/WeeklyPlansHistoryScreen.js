@@ -25,18 +25,9 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors } from '../../theme/colors';
 import { typography } from '../../theme/typography';
-
-const DAY_NAMES = {
-  sunday: 'ראשון',
-  monday: 'שני',
-  tuesday: 'שלישי',
-  wednesday: 'רביעי',
-  thursday: 'חמישי',
-  friday: 'שישי',
-  saturday: 'שבת',
-};
 
 function formatDate(ts) {
   if (!ts) return '';
@@ -46,12 +37,23 @@ function formatDate(ts) {
 
 // ── PlanItem ───────────────────────────────────────────────────────────────────
 
-function PlanItem({ plan, isFirst }) {
+function PlanItem({ plan, isFirst, t }) {
   const [expanded, setExpanded] = useState(isFirst);
 
   const workouts = plan.workouts || [];
-  const activeDays = workouts.filter((w) => w.name && w.name !== 'מנוחה');
-  const restDays = workouts.filter((w) => w.name === 'מנוחה' || !w.name);
+  const restLabel = t('plansHistory.rest');
+  const activeDays = workouts.filter((w) => w.name && w.name !== restLabel && w.name !== 'מנוחה' && w.name !== 'Rest');
+  const isRest = (name) => !name || name === restLabel || name === 'מנוחה' || name === 'Rest';
+
+  const DAY_NAMES_MAP = {
+    sunday: t('plansHistory.days.0'),
+    monday: t('plansHistory.days.1'),
+    tuesday: t('plansHistory.days.2'),
+    wednesday: t('plansHistory.days.3'),
+    thursday: t('plansHistory.days.4'),
+    friday: t('plansHistory.days.5'),
+    saturday: t('plansHistory.days.6'),
+  };
 
   const toggle = () => {
     setExpanded((v) => !v);
@@ -64,7 +66,7 @@ function PlanItem({ plan, isFirst }) {
         <View style={styles.planHeaderLeft}>
           {isFirst && (
             <View style={styles.currentBadge}>
-              <Text style={styles.currentBadgeText}>נוכחית</Text>
+              <Text style={styles.currentBadgeText}>{t('plansHistory.current')}</Text>
             </View>
           )}
           <Text style={styles.planWeekLabel}>{plan.weekLabel}</Text>
@@ -98,20 +100,20 @@ function PlanItem({ plan, isFirst }) {
           {/* Workout days */}
           <View style={styles.dayList}>
             {workouts.map((w, i) => {
-              const isRest = !w.name || w.name === 'מנוחה';
-              const dayLabel = DAY_NAMES[w.day?.toLowerCase?.()] || w.day || `יום ${i + 1}`;
+              const rest = isRest(w.name);
+              const dayLabel = DAY_NAMES_MAP[w.day?.toLowerCase?.()] || w.day || `Day ${i + 1}`;
               return (
-                <View key={i} style={[styles.dayRow, isRest && styles.dayRowRest]}>
-                  <View style={[styles.dayTag, isRest && styles.dayTagRest]}>
-                    <Text style={[styles.dayTagText, isRest && styles.dayTagTextRest]}>
+                <View key={i} style={[styles.dayRow, rest && styles.dayRowRest]}>
+                  <View style={[styles.dayTag, rest && styles.dayTagRest]}>
+                    <Text style={[styles.dayTagText, rest && styles.dayTagTextRest]}>
                       {w.short || dayLabel.slice(0, 1)}
                     </Text>
                   </View>
                   <View style={styles.dayContent}>
-                    <Text style={[styles.dayName, isRest && styles.dayNameRest]}>
-                      {isRest ? 'מנוחה' : w.name}
+                    <Text style={[styles.dayName, rest && styles.dayNameRest]}>
+                      {rest ? t('plansHistory.rest') : w.name}
                     </Text>
-                    {!isRest && w.exercises && (
+                    {!rest && w.exercises && (
                       <Text style={styles.dayExercises} numberOfLines={1}>
                         {Array.isArray(w.exercises)
                           ? w.exercises.slice(0, 3).join(' · ')
@@ -119,7 +121,7 @@ function PlanItem({ plan, isFirst }) {
                       </Text>
                     )}
                   </View>
-                  {isRest && (
+                  {rest && (
                     <Ionicons name="bed-outline" size={16} color={colors.textMuted} />
                   )}
                 </View>
@@ -135,6 +137,7 @@ function PlanItem({ plan, isFirst }) {
 // ── Main Screen ────────────────────────────────────────────────────────────────
 
 export default function WeeklyPlansHistoryScreen({ navigation }) {
+  const { t, isRTL } = useLanguage();
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -158,12 +161,12 @@ export default function WeeklyPlansHistoryScreen({ navigation }) {
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          <Ionicons name={isRTL ? 'arrow-forward' : 'arrow-back'} size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerTitle}>
-          <Text style={styles.headerTitleText}>כל התוכניות</Text>
+          <Text style={styles.headerTitleText}>{t('plansHistory.title')}</Text>
           {!loading && (
-            <Text style={styles.headerCount}>{plans.length} תוכניות</Text>
+            <Text style={styles.headerCount}>{plans.length}</Text>
           )}
         </View>
         <View style={{ width: 40 }} />
@@ -177,15 +180,15 @@ export default function WeeklyPlansHistoryScreen({ navigation }) {
       ) : plans.length === 0 ? (
         <View style={styles.emptyWrap}>
           <Ionicons name="clipboard-outline" size={48} color={colors.textMuted} />
-          <Text style={styles.emptyTitle}>אין תוכניות עדיין</Text>
-          <Text style={styles.emptySub}>Kirsten תפרסם בקרוב</Text>
+          <Text style={styles.emptyTitle}>{t('plansHistory.noPlans')}</Text>
+          <Text style={styles.emptySub}>{t('plansHistory.noPlansSub')}</Text>
         </View>
       ) : (
         <FlatList
           data={plans}
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
-            <PlanItem plan={item} isFirst={index === 0} />
+            <PlanItem plan={item} isFirst={index === 0} t={t} />
           )}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}

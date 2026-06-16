@@ -11,6 +11,7 @@ import {
 import { db } from '../../config/firebase';
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { useLanguage } from '../../context/LanguageContext';
 
 function Eyebrow({ children, style }) {
   return <Text style={[styles.eyebrow, style]}>{children}</Text>;
@@ -37,6 +38,7 @@ function Avatar({ initials, size = 42, active }) {
 export default function ClientsScreen({ navigation }) {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { t, isRTL } = useLanguage();
 
   useEffect(() => {
     const q = query(
@@ -82,9 +84,9 @@ export default function ClientsScreen({ navigation }) {
 
       {/* Header */}
       <View style={styles.header}>
-        <Eyebrow>CLIENTS</Eyebrow>
-        <Text style={styles.headerTitle}>My Clients</Text>
-        <Text style={styles.headerSub}>{clients.length} active</Text>
+        <Eyebrow>{t('clients.eyebrow')}</Eyebrow>
+        <Text style={styles.headerTitle}>{t('clients.title')}</Text>
+        <Text style={styles.headerSub}>{clients.length} {t('clients.active')}</Text>
       </View>
 
       {loading ? (
@@ -96,8 +98,8 @@ export default function ClientsScreen({ navigation }) {
           <View style={styles.emptyIcon}>
             <Ionicons name="people-outline" size={28} color={colors.textMuted} />
           </View>
-          <Text style={styles.emptyTitle}>No clients yet</Text>
-          <Text style={styles.emptySub}>Clients who join will appear here</Text>
+          <Text style={styles.emptyTitle}>{t('clients.noClients')}</Text>
+          <Text style={styles.emptySub}>{t('clients.noClientsSub')}</Text>
         </View>
       ) : (
         <FlatList
@@ -106,6 +108,8 @@ export default function ClientsScreen({ navigation }) {
           renderItem={({ item }) => (
             <ClientRow
               client={item}
+              t={t}
+              isRTL={isRTL}
               onPress={() =>
                 navigation.navigate('ClientProgress', {
                   clientId: item.uid,
@@ -123,7 +127,7 @@ export default function ClientsScreen({ navigation }) {
   );
 }
 
-function ClientRow({ client, onPress }) {
+function ClientRow({ client, onPress, t, isRTL }) {
   const { name, email, lastWorkout, workoutsThisMonth } = client;
   const initials = getInitials(name ?? email ?? '?');
   const hasRecentActivity = workoutsThisMonth > 0;
@@ -138,17 +142,17 @@ function ClientRow({ client, onPress }) {
           <Text style={styles.rowName} numberOfLines={1}>{name ?? email}</Text>
           {workoutsThisMonth > 0 && (
             <View style={styles.monthBadge}>
-              <Text style={styles.monthBadgeText}>{workoutsThisMonth} this month</Text>
+              <Text style={styles.monthBadgeText}>{workoutsThisMonth} {t('clients.thisMonth')}</Text>
             </View>
           )}
         </View>
         <View style={styles.rowBottomLine}>
           <Ionicons name="time-outline" size={12} color={colors.textMuted} />
-          <Text style={styles.rowSub}>Last session: {lastDateStr}</Text>
+          <Text style={styles.rowSub}>{t('clients.lastSession', { date: lastDateStr })}</Text>
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+      <Ionicons name={isRTL ? 'chevron-back' : 'chevron-forward'} size={16} color={colors.textMuted} />
     </TouchableOpacity>
   );
 }

@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
@@ -46,22 +47,9 @@ function MiniStat({ label, value, accent }) {
   );
 }
 
-function EmptyState() {
-  return (
-    <View style={styles.emptyState}>
-      <View style={styles.emptyIcon}>
-        <Ionicons name="videocam-outline" size={28} color={colors.textMuted} />
-      </View>
-      <Text style={styles.emptyTitle}>No videos yet</Text>
-      <Text style={styles.emptyBody}>
-        Record a working set and Kirsten will review it. Side angle gives the best feedback.
-      </Text>
-    </View>
-  );
-}
-
 export default function BookScreen() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -80,6 +68,16 @@ export default function BookScreen() {
 
   const pending = videos.filter((v) => v.status === 'pending').length;
   const reviewed = videos.filter((v) => v.status === 'reviewed').length;
+
+  const EmptyState = () => (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIcon}>
+        <Ionicons name="videocam-outline" size={28} color={colors.textMuted} />
+      </View>
+      <Text style={styles.emptyTitle}>{t('video.noVideos')}</Text>
+      <Text style={styles.emptyBody}>{t('video.noVideosSub')}</Text>
+    </View>
+  );
 
   const renderVideo = ({ item, index }) => {
     const isReviewed = item.status === 'reviewed';
@@ -101,18 +99,18 @@ export default function BookScreen() {
           {/* Info */}
           <View style={{ flex: 1 }}>
             <View style={styles.videoTitleRow}>
-              <Text style={styles.videoTitle}>{item.exercise ?? 'Untitled'}</Text>
+              <Text style={styles.videoTitle}>{item.exercise ?? t('video.untitled')}</Text>
               {item.status === 'pending' ? (
                 <View style={styles.chipWarn}>
-                  <Text style={styles.chipWarnText}>PENDING</Text>
+                  <Text style={styles.chipWarnText}>{t('video.pendingBadge')}</Text>
                 </View>
               ) : isGreen ? (
                 <View style={styles.chipOk}>
-                  <Text style={styles.chipOkText}>PR-WORTHY</Text>
+                  <Text style={styles.chipOkText}>{t('video.prWorthy')}</Text>
                 </View>
               ) : (
                 <View style={styles.chipAccent}>
-                  <Text style={styles.chipAccentText}>FORM CUE</Text>
+                  <Text style={styles.chipAccentText}>{t('video.formCue')}</Text>
                 </View>
               )}
             </View>
@@ -140,8 +138,8 @@ export default function BookScreen() {
 
         {/* Header */}
         <View style={styles.screenHeader}>
-          <Eyebrow>VIDEO REVIEW</Eyebrow>
-          <Text style={styles.screenTitle}>Form check</Text>
+          <Eyebrow>{t('video.eyebrow')}</Eyebrow>
+          <Text style={styles.screenTitle}>{t('video.title')}</Text>
         </View>
 
         {/* Upload CTA card */}
@@ -152,20 +150,20 @@ export default function BookScreen() {
                 <Ionicons name="videocam" size={24} color={colors.accentInk} />
               </LinearGradient>
               <View style={{ flex: 1 }}>
-                <Text style={styles.ctaTitle}>Send a lift to Kirsten</Text>
-                <Text style={styles.ctaSub}>≤ 60s · she'll reply within 24h</Text>
+                <Text style={styles.ctaTitle}>{t('video.subtitle')}</Text>
+                <Text style={styles.ctaSub}>{t('video.constraint')}</Text>
               </View>
             </View>
             <View style={styles.ctaCardDivider} />
             <View style={styles.ctaBtnRow}>
               <TouchableOpacity style={styles.ctaBtn} activeOpacity={0.75}>
                 <Ionicons name="radio-button-on" size={16} color={colors.textPrimary} />
-                <Text style={styles.ctaBtnText}>Record</Text>
+                <Text style={styles.ctaBtnText}>{t('video.record')}</Text>
               </TouchableOpacity>
               <View style={styles.ctaBtnDivider} />
               <TouchableOpacity style={styles.ctaBtn} activeOpacity={0.75}>
                 <Ionicons name="cloud-upload-outline" size={16} color={colors.textPrimary} />
-                <Text style={styles.ctaBtnText}>Upload</Text>
+                <Text style={styles.ctaBtnText}>{t('video.upload')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -173,14 +171,14 @@ export default function BookScreen() {
 
         {/* Stats row */}
         <View style={styles.statsRow}>
-          <MiniStat label="SENT" value={videos.length} />
-          <MiniStat label="PENDING" value={pending} accent={pending > 0} />
-          <MiniStat label="REVIEWED" value={reviewed} />
+          <MiniStat label={t('video.sent')} value={videos.length} />
+          <MiniStat label={t('video.pending')} value={pending} accent={pending > 0} />
+          <MiniStat label={t('video.reviewed')} value={reviewed} />
         </View>
 
         {/* Video list */}
         <View style={styles.sectionPad}>
-          <Eyebrow style={{ marginBottom: 12 }}>YOUR VIDEOS</Eyebrow>
+          <Eyebrow style={{ marginBottom: 12 }}>{t('video.yourVideos')}</Eyebrow>
           {loading ? (
             <View style={styles.loadingRow}>
               <ActivityIndicator color={colors.accent} />

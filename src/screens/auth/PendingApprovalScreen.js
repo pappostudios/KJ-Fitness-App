@@ -7,11 +7,13 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 export default function PendingApprovalScreen() {
   const { user, logOut } = useAuth();
+  const { t } = useLanguage();
 
   return (
     <View style={styles.container}>
@@ -25,18 +27,15 @@ export default function PendingApprovalScreen() {
         </View>
 
         {/* Text */}
-        <Text style={styles.title}>הבקשה נשלחה!</Text>
-        <Text style={styles.subtitle}>
-          Kirsten תקבל את בקשתך ותאשר אותה בהקדם.{'\n'}
-          תקבל גישה לאפליקציה לאחר האישור.
-        </Text>
+        <Text style={styles.title}>{t('pending.title')}</Text>
+        <Text style={styles.subtitle}>{t('pending.subtitle')}</Text>
 
         {/* Info card */}
         <View style={styles.card}>
           <View style={styles.cardRow}>
             <Text style={styles.cardIcon}>📧</Text>
             <View style={styles.cardText}>
-              <Text style={styles.cardLabel}>החשבון הממתין</Text>
+              <Text style={styles.cardLabel}>{t('pending.accountLabel')}</Text>
               <Text style={styles.cardValue}>{user?.email}</Text>
             </View>
           </View>
@@ -46,17 +45,15 @@ export default function PendingApprovalScreen() {
           <View style={styles.cardRow}>
             <Text style={styles.cardIcon}>✅</Text>
             <View style={styles.cardText}>
-              <Text style={styles.cardLabel}>הצעד הבא</Text>
-              <Text style={styles.cardValue}>
-                לאחר שהמאמנת תאשר אותך, הדף הזה יתעדכן אוטומטית
-              </Text>
+              <Text style={styles.cardLabel}>{t('pending.nextStep')}</Text>
+              <Text style={styles.cardValue}>{t('pending.nextStepValue')}</Text>
             </View>
           </View>
         </View>
 
         {/* Sign out */}
         <TouchableOpacity style={styles.signOutButton} onPress={logOut}>
-          <Text style={styles.signOutText}>יציאה</Text>
+          <Text style={styles.signOutText}>{t('pending.signOut')}</Text>
         </TouchableOpacity>
 
       </LinearGradient>

@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { colors, gradients, dark } from '../../theme/colors';
+import { useLanguage } from '../../context/LanguageContext';
 
 function Eyebrow({ children, style }) {
   return <Text style={[styles.eyebrow, style]}>{children}</Text>;
@@ -16,6 +17,7 @@ function Eyebrow({ children, style }) {
 export default function ConversationsScreen({ navigation }) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { t, isRTL } = useLanguage();
 
   useEffect(() => {
     const q = query(collection(db, 'conversations'), orderBy('lastMessageAt', 'desc'));
@@ -33,9 +35,9 @@ export default function ConversationsScreen({ navigation }) {
 
       {/* Header */}
       <View style={styles.header}>
-        <Eyebrow>MESSAGES</Eyebrow>
+        <Eyebrow>{t('conversations.eyebrow')}</Eyebrow>
         <View style={styles.headerRow}>
-          <Text style={styles.headerTitle}>Conversations</Text>
+          <Text style={styles.headerTitle}>{t('conversations.title')}</Text>
           {totalUnread > 0 && (
             <View style={styles.unreadBadge}>
               <Text style={styles.unreadBadgeText}>{totalUnread}</Text>
@@ -43,7 +45,9 @@ export default function ConversationsScreen({ navigation }) {
           )}
         </View>
         <Text style={styles.headerSub}>
-          {totalUnread > 0 ? `${totalUnread} unread` : `${conversations.length} conversations`}
+          {totalUnread > 0
+            ? t('conversations.unread', { count: totalUnread })
+            : t('conversations.count', { count: conversations.length })}
         </Text>
       </View>
 
@@ -56,8 +60,8 @@ export default function ConversationsScreen({ navigation }) {
           <View style={styles.emptyIcon}>
             <Ionicons name="chatbubbles-outline" size={28} color={colors.textMuted} />
           </View>
-          <Text style={styles.emptyTitle}>No conversations yet</Text>
-          <Text style={styles.emptySub}>Client messages will appear here</Text>
+          <Text style={styles.emptyTitle}>{t('conversations.noConversations')}</Text>
+          <Text style={styles.emptySub}>{t('conversations.noConversationsSub')}</Text>
         </View>
       ) : (
         <FlatList
@@ -66,6 +70,7 @@ export default function ConversationsScreen({ navigation }) {
           renderItem={({ item }) => (
             <ConversationRow
               conversation={item}
+              isRTL={isRTL}
               onPress={() =>
                 navigation.navigate('CoachChat', {
                   clientId: item.clientId,
@@ -83,7 +88,7 @@ export default function ConversationsScreen({ navigation }) {
   );
 }
 
-function ConversationRow({ conversation, onPress }) {
+function ConversationRow({ conversation, onPress, isRTL }) {
   const { clientName, lastMessage, lastMessageAt, unreadByCoach } = conversation;
   const hasUnread = (unreadByCoach ?? 0) > 0;
   const timeStr = lastMessageAt?.toDate ? formatTime(lastMessageAt.toDate()) : '';
@@ -132,7 +137,7 @@ function ConversationRow({ conversation, onPress }) {
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+      <Ionicons name={isRTL ? 'chevron-back' : 'chevron-forward'} size={16} color={colors.textMuted} />
     </TouchableOpacity>
   );
 }

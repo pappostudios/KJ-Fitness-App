@@ -20,6 +20,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
@@ -45,6 +46,7 @@ function formatTime(ts) {
 
 export default function MessagesScreen() {
   const { user, profile } = useAuth();
+  const { t, isRTL } = useLanguage();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -158,7 +160,7 @@ export default function MessagesScreen() {
         <Avatar initials="KJ" size={36} />
         <View style={{ flex: 1 }}>
           <Text style={styles.headerName}>Kirsten</Text>
-          <Text style={styles.headerSub}>Your coach · KJ Fitness</Text>
+          <Text style={styles.headerSub}>{t('chat.coachTitle')}</Text>
         </View>
         <Ionicons name="ellipsis-horizontal" size={20} color={colors.textMuted} />
       </View>
@@ -178,10 +180,8 @@ export default function MessagesScreen() {
             <View style={styles.emptyIcon}>
               <Ionicons name="chatbubble-ellipses-outline" size={28} color={colors.textMuted} />
             </View>
-            <Text style={styles.emptyTitle}>No messages yet</Text>
-            <Text style={styles.emptyBody}>
-              Say hi to Kirsten — ask a question, share how today's session felt, or send a video.
-            </Text>
+            <Text style={styles.emptyTitle}>{t('chat.noMessages')}</Text>
+            <Text style={styles.emptyBody}>{t('chat.noMessagesSub')}</Text>
           </View>
         ) : (
           <FlatList
@@ -201,7 +201,7 @@ export default function MessagesScreen() {
             style={styles.textInput}
             value={text}
             onChangeText={setText}
-            placeholder="Message Kirsten…"
+            placeholder={t('chat.placeholder')}
             placeholderTextColor={colors.textMuted}
             multiline
             maxLength={1000}

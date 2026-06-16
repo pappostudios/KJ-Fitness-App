@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
@@ -29,6 +30,7 @@ function Avatar({ initials, size = 80 }) {
 
 export default function CoachProfileScreen({ navigation }) {
   const { user, profile, logOut } = useAuth();
+  const { t, isRTL } = useLanguage();
 
   const [name, setName]   = useState('');
   const [phone, setPhone] = useState('');
@@ -48,7 +50,7 @@ export default function CoachProfileScreen({ navigation }) {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Please enter your name.');
+      Alert.alert(t('coachProfile.error'), t('coachProfile.nameRequired'));
       return;
     }
     setSaving(true);
@@ -59,18 +61,18 @@ export default function CoachProfileScreen({ navigation }) {
         { merge: true },
       );
       setDirty(false);
-      Alert.alert('Saved', 'Profile updated successfully.');
+      Alert.alert(t('coachProfile.saved'), t('coachProfile.savedMsg'));
     } catch {
-      Alert.alert('Error', 'Could not save. Please try again.');
+      Alert.alert(t('coachProfile.error'), t('coachProfile.errorMsg'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: logOut },
+    Alert.alert(t('coachProfile.signOutTitle'), t('coachProfile.signOutConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('coachProfile.signOut'), style: 'destructive', onPress: logOut },
     ]);
   };
 
@@ -87,11 +89,11 @@ export default function CoachProfileScreen({ navigation }) {
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-              <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
+              <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={22} color={colors.textPrimary} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Eyebrow>ACCOUNT</Eyebrow>
-              <Text style={styles.headerTitle}>My Profile</Text>
+              <Eyebrow>{t('coachProfile.eyebrow')}</Eyebrow>
+              <Text style={styles.headerTitle}>{t('coachProfile.title')}</Text>
             </View>
           </View>
 
@@ -100,7 +102,7 @@ export default function CoachProfileScreen({ navigation }) {
             <Avatar initials={initials} size={84} />
             <View style={styles.coachBadge}>
               <Ionicons name="shield-checkmark-outline" size={12} color={colors.accent} />
-              <Text style={styles.coachBadgeText}>COACH</Text>
+              <Text style={styles.coachBadgeText}>{t('coachProfile.coachBadge')}</Text>
             </View>
             <Text style={styles.emailText}>{user?.email}</Text>
           </View>
@@ -108,19 +110,19 @@ export default function CoachProfileScreen({ navigation }) {
           {/* Edit fields */}
           <View style={styles.card}>
             <Field
-              label="Full Name"
+              label={t('coachProfile.fullName')}
               icon="person-outline"
               value={name}
               onChangeText={markDirty(setName)}
-              placeholder="Your name"
+              placeholder={t('coachProfile.namePlaceholder')}
             />
             <View style={styles.divider} />
             <Field
-              label="Phone"
+              label={t('coachProfile.phone')}
               icon="call-outline"
               value={phone}
               onChangeText={markDirty(setPhone)}
-              placeholder="+972 5X-XXX-XXXX"
+              placeholder={t('coachProfile.phonePlaceholder')}
               keyboardType="phone-pad"
             />
           </View>
@@ -142,7 +144,7 @@ export default function CoachProfileScreen({ navigation }) {
                 <>
                   <Ionicons name="checkmark-circle-outline" size={18} color={dirty ? '#fff' : colors.textMuted} />
                   <Text style={[styles.saveBtnText, !dirty && { color: colors.textMuted }]}>
-                    Save Changes
+                    {t('coachProfile.save')}
                   </Text>
                 </>
               )}
@@ -162,7 +164,7 @@ export default function CoachProfileScreen({ navigation }) {
               <View style={styles.linkIconWrap}>
                 <Ionicons name="card-outline" size={18} color={colors.accent} />
               </View>
-              <Text style={styles.linkText}>Payment Settings</Text>
+              <Text style={styles.linkText}>{t('coachProfile.paymentSettings')}</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
             </TouchableOpacity>
             <View style={styles.divider} />
@@ -174,7 +176,7 @@ export default function CoachProfileScreen({ navigation }) {
               <View style={styles.linkIconWrap}>
                 <Ionicons name="calendar-outline" size={18} color={colors.accent} />
               </View>
-              <Text style={styles.linkText}>Publish Weekly Plan</Text>
+              <Text style={styles.linkText}>{t('coachProfile.weeklyPlan')}</Text>
               <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
@@ -182,7 +184,7 @@ export default function CoachProfileScreen({ navigation }) {
           {/* Sign out */}
           <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.7}>
             <Ionicons name="log-out-outline" size={18} color={colors.error} />
-            <Text style={styles.signOutText}>Sign Out</Text>
+            <Text style={styles.signOutText}>{t('coachProfile.signOut')}</Text>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />

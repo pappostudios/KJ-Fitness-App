@@ -2,29 +2,28 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 export default function RejectedScreen() {
   const { logOut } = useAuth();
+  const { t } = useLanguage();
 
   return (
     <View style={styles.container}>
       <LinearGradient colors={gradients.hero} style={styles.bg}>
         <Text style={styles.icon}>🚫</Text>
-        <Text style={styles.title}>הבקשה נדחתה</Text>
-        <Text style={styles.subtitle}>
-          לצערנו, בקשת ההצטרפות שלך לא אושרה.{'\n'}
-          לפרטים נוספים, פנה ל-Kirsten ישירות.
-        </Text>
+        <Text style={styles.title}>{t('rejected.title')}</Text>
+        <Text style={styles.subtitle}>{t('rejected.subtitle')}</Text>
 
         <View style={styles.card}>
-          <Text style={styles.contactLabel}>📞 יצירת קשר</Text>
+          <Text style={styles.contactLabel}>{t('rejected.contact')}</Text>
           <Text style={styles.contactValue}>kjfitness.info@gmail.com</Text>
         </View>
 
         <TouchableOpacity style={styles.button} onPress={logOut}>
-          <Text style={styles.buttonText}>חזרה לדף הכניסה</Text>
+          <Text style={styles.buttonText}>{t('rejected.backToLogin')}</Text>
         </TouchableOpacity>
       </LinearGradient>
     </View>

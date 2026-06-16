@@ -17,11 +17,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 export default function ClientProfileScreen({ navigation }) {
   const { user, profile, logOut } = useAuth();
+  const { t, language, setLanguage, isRTL } = useLanguage();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -30,7 +32,6 @@ export default function ClientProfileScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  // Populate fields from profile
   useEffect(() => {
     if (profile) {
       setName(profile.name || '');
@@ -50,7 +51,7 @@ export default function ClientProfileScreen({ navigation }) {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('שגיאה', 'נא להזין שם');
+      Alert.alert(t('clientProfile.error'), t('clientProfile.nameRequired'));
       return;
     }
     setSaving(true);
@@ -67,18 +68,18 @@ export default function ClientProfileScreen({ navigation }) {
         { merge: true }
       );
       setDirty(false);
-      Alert.alert('✓', 'הפרופיל עודכן בהצלחה');
-    } catch (err) {
-      Alert.alert('שגיאה', 'לא ניתן לשמור. נסה שוב.');
+      Alert.alert(t('clientProfile.saved'), t('clientProfile.savedMsg'));
+    } catch {
+      Alert.alert(t('clientProfile.error'), t('clientProfile.errorMsg'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleSignOut = () => {
-    Alert.alert('התנתקות', 'האם להתנתק מהאפליקציה?', [
-      { text: 'ביטול', style: 'cancel' },
-      { text: 'התנתק', style: 'destructive', onPress: logOut },
+    Alert.alert(t('clientProfile.signOutTitle'), t('clientProfile.signOutConfirm'), [
+      { text: t('clientProfile.cancel'), style: 'cancel' },
+      { text: t('clientProfile.signOut'), style: 'destructive', onPress: logOut },
     ]);
   };
 
@@ -87,14 +88,16 @@ export default function ClientProfileScreen({ navigation }) {
     setDirty(true);
   };
 
+  const align = isRTL ? 'right' : 'left';
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Header */}
       <LinearGradient colors={['rgba(20,184,166,0.08)', '#F8FAFC']} style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
+          <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>הפרופיל שלי</Text>
+        <Text style={styles.headerTitle}>{t('clientProfile.title')}</Text>
         <View style={{ width: 36 }} />
       </LinearGradient>
 
@@ -110,62 +113,92 @@ export default function ClientProfileScreen({ navigation }) {
         >
           {/* Avatar */}
           <View style={styles.avatarSection}>
-            <LinearGradient
-              colors={gradients.avatar}
-              style={styles.avatar}
-            >
+            <LinearGradient colors={gradients.avatar} style={styles.avatar}>
               <Text style={styles.avatarText}>{getInitials(name || profile?.name)}</Text>
             </LinearGradient>
             <Text style={styles.emailLabel}>{user?.email}</Text>
           </View>
 
+          {/* Language section */}
+          <View style={styles.langCard}>
+            <View style={styles.langCardHeader}>
+              <Ionicons name="language-outline" size={18} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.langCardTitle, { textAlign: align }]}>{t('clientProfile.language')}</Text>
+                <Text style={[styles.langCardSub, { textAlign: align }]}>{t('clientProfile.languageSub')}</Text>
+              </View>
+            </View>
+            <View style={styles.langRow}>
+              <TouchableOpacity
+                style={[styles.langBtn, language === 'en' && styles.langBtnActive]}
+                onPress={() => setLanguage('en')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.langBtnText, language === 'en' && styles.langBtnTextActive]}>
+                  English
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.langBtn, language === 'he' && styles.langBtnActive]}
+                onPress={() => setLanguage('he')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.langBtnText, language === 'he' && styles.langBtnTextActive]}>
+                  עברית
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Form */}
           <View style={styles.formCard}>
             <Field
-              label="שם מלא"
+              label={t('clientProfile.fullName')}
               icon="person-outline"
               value={name}
               onChangeText={markDirty(setName)}
-              placeholder="השם שלך"
+              placeholder={t('clientProfile.namePlaceholder')}
+              align={align}
             />
             <Divider />
             <Field
-              label="טלפון"
+              label={t('clientProfile.phone')}
               icon="call-outline"
               value={phone}
               onChangeText={markDirty(setPhone)}
-              placeholder="05X-XXXXXXX"
+              placeholder={t('clientProfile.phonePlaceholder')}
               keyboardType="phone-pad"
+              align={align}
             />
           </View>
 
-          <Text style={styles.sectionHeading}>יעדים ומטרות</Text>
+          <Text style={[styles.sectionHeading, { textAlign: align }]}>{t('clientProfile.goals')}</Text>
           <View style={styles.formCard}>
             <TextInput
               style={styles.textArea}
               value={goals}
               onChangeText={markDirty(setGoals)}
-              placeholder="מה המטרות שלך? (ירידה במשקל, חיזוק, גמישות...)"
+              placeholder={t('clientProfile.goalsPlaceholder')}
               placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
-              textAlign="right"
+              textAlign={align}
             />
           </View>
 
-          <Text style={styles.sectionHeading}>הערות רפואיות / אחרות</Text>
+          <Text style={[styles.sectionHeading, { textAlign: align }]}>{t('clientProfile.medicalNotes')}</Text>
           <View style={styles.formCard}>
             <TextInput
               style={styles.textArea}
               value={notes}
               onChangeText={markDirty(setNotes)}
-              placeholder="פציעות, מגבלות, תרופות וכד'..."
+              placeholder={t('clientProfile.medicalPlaceholder')}
               placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
-              textAlign="right"
+              textAlign={align}
             />
           </View>
 
@@ -181,7 +214,7 @@ export default function ClientProfileScreen({ navigation }) {
             ) : (
               <>
                 <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-                <Text style={styles.saveBtnText}>שמור שינויים</Text>
+                <Text style={styles.saveBtnText}>{t('clientProfile.save')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -189,7 +222,7 @@ export default function ClientProfileScreen({ navigation }) {
           {/* Sign out */}
           <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.7}>
             <Ionicons name="log-out-outline" size={18} color={colors.error || '#FF5252'} />
-            <Text style={styles.signOutText}>התנתק</Text>
+            <Text style={styles.signOutText}>{t('clientProfile.signOut')}</Text>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />
@@ -199,13 +232,12 @@ export default function ClientProfileScreen({ navigation }) {
   );
 }
 
-// ── Field component ──────────────────────────────────────────────────────────
-function Field({ label, icon, value, onChangeText, placeholder, keyboardType }) {
+function Field({ label, icon, value, onChangeText, placeholder, keyboardType, align }) {
   return (
     <View style={styles.field}>
       <Ionicons name={icon} size={18} color={colors.primary} style={styles.fieldIcon} />
       <View style={styles.fieldBody}>
-        <Text style={styles.fieldLabel}>{label}</Text>
+        <Text style={[styles.fieldLabel, { textAlign: align }]}>{label}</Text>
         <TextInput
           style={styles.fieldInput}
           value={value}
@@ -213,7 +245,7 @@ function Field({ label, icon, value, onChangeText, placeholder, keyboardType }) 
           placeholder={placeholder}
           placeholderTextColor={colors.textMuted}
           keyboardType={keyboardType || 'default'}
-          textAlign="right"
+          textAlign={align}
         />
       </View>
     </View>
@@ -224,7 +256,6 @@ function Divider() {
   return <View style={styles.divider} />;
 }
 
-// ── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
 
@@ -250,7 +281,6 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { padding: 20, gap: 12 },
 
-  // ── Avatar ──
   avatarSection: { alignItems: 'center', paddingVertical: 8, gap: 10 },
   avatar: {
     width: 84,
@@ -264,7 +294,30 @@ const styles = StyleSheet.create({
   avatarText: { ...typography.h1, color: colors.primary, fontSize: 30 },
   emailLabel: { ...typography.caption, color: colors.textSecondary },
 
-  // ── Form card ──
+  langCard: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    padding: 16,
+    gap: 12,
+  },
+  langCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  langCardTitle: { ...typography.label, color: colors.textPrimary, marginBottom: 2 },
+  langCardSub: { ...typography.caption, color: colors.textMuted },
+  langRow: { flexDirection: 'row', gap: 10 },
+  langBtn: {
+    flex: 1, paddingVertical: 10, borderRadius: 12,
+    backgroundColor: colors.backgroundAlt,
+    borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center',
+  },
+  langBtnActive: {
+    backgroundColor: 'rgba(20,184,166,0.12)', borderColor: colors.primary,
+  },
+  langBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textMuted },
+  langBtnTextActive: { color: colors.primary },
+
   formCard: {
     backgroundColor: colors.card,
     borderRadius: 16,
@@ -281,7 +334,7 @@ const styles = StyleSheet.create({
   },
   fieldIcon: { marginTop: 14 },
   fieldBody: { flex: 1 },
-  fieldLabel: { ...typography.caption, color: colors.textMuted, textAlign: 'right', marginBottom: 2 },
+  fieldLabel: { ...typography.caption, color: colors.textMuted, marginBottom: 2 },
   fieldInput: {
     ...typography.body,
     color: colors.textPrimary,
@@ -299,11 +352,9 @@ const styles = StyleSheet.create({
   sectionHeading: {
     ...typography.label,
     color: colors.textMuted,
-    textAlign: 'right',
     marginTop: 4,
   },
 
-  // ── Save ──
   saveBtn: {
     flexDirection: 'row',
     backgroundColor: colors.primary,
@@ -317,7 +368,6 @@ const styles = StyleSheet.create({
   saveBtnDisabled: { opacity: 0.4 },
   saveBtnText: { ...typography.button, color: '#fff' },
 
-  // ── Sign out ──
   signOutBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -22,37 +22,18 @@ import {
 } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const CATEGORIES = [
-  { key: 'all',         label: 'הכל',       emoji: '✨' },
-  { key: 'workout',     label: 'אימונים',   emoji: '💪' },
-  { key: 'nutrition',   label: 'תזונה',     emoji: '🥗' },
-  { key: 'motivation',  label: 'מוטיבציה',  emoji: '🔥' },
-  { key: 'technique',   label: 'טכניקה',    emoji: '🎯' },
-  { key: 'general',     label: 'כללי',      emoji: '📌' },
-];
-
-const TYPE_META = {
-  video:   { icon: 'play-circle',    label: 'וידאו',  color: '#E91E63' },
-  article: { icon: 'document-text',  label: 'מאמר',   color: '#FF9800' },
-  image:   { icon: 'image',          label: 'תמונה',  color: '#9C27B0' },
-};
 
 // ── YouTube helpers ────────────────────────────────────────────────────────────
 
 function extractYouTubeId(url) {
   if (!url) return null;
-  // Standard: youtube.com/watch?v=ID
   let m = url.match(/[?&]v=([A-Za-z0-9_-]{11})/);
   if (m) return m[1];
-  // Short: youtu.be/ID
   m = url.match(/youtu\.be\/([A-Za-z0-9_-]{11})/);
   if (m) return m[1];
-  // Embed: youtube.com/embed/ID
   m = url.match(/embed\/([A-Za-z0-9_-]{11})/);
   if (m) return m[1];
   return null;
@@ -71,6 +52,23 @@ function isYouTubeUrl(url) {
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function LibraryScreen() {
+  const { t, isRTL } = useLanguage();
+
+  const CATEGORIES = [
+    { key: 'all',         label: t('clientLibrary.all'),       emoji: '✨' },
+    { key: 'workout',     label: t('library.workouts'),        emoji: '💪' },
+    { key: 'nutrition',   label: t('library.nutrition'),       emoji: '🥗' },
+    { key: 'motivation',  label: t('library.motivation'),      emoji: '🔥' },
+    { key: 'technique',   label: t('library.technique'),       emoji: '🎯' },
+    { key: 'general',     label: t('library.general'),         emoji: '📌' },
+  ];
+
+  const TYPE_META = {
+    video:   { icon: 'play-circle',    label: t('library.video'),    color: '#E91E63' },
+    article: { icon: 'document-text',  label: t('library.article'),  color: '#FF9800' },
+    image:   { icon: 'image',          label: t('library.image'),    color: '#9C27B0' },
+  };
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('all');
@@ -126,8 +124,8 @@ export default function LibraryScreen() {
 
       {/* Header */}
       <LinearGradient colors={gradients.hero} style={styles.header}>
-        <Text style={styles.headerTitle}>ספריית תוכן</Text>
-        <Text style={styles.headerSub}>{items.length} פריטים זמינים</Text>
+        <Text style={styles.headerTitle}>{t('clientLibrary.title')}</Text>
+        <Text style={styles.headerSub}>{t('clientLibrary.available', { count: items.length })}</Text>
       </LinearGradient>
 
       {/* Category filter */}
@@ -169,15 +167,15 @@ export default function LibraryScreen() {
         <View style={styles.center}>
           <Text style={styles.emptyIcon}>📂</Text>
           <Text style={styles.emptyTitle}>
-            {activeCategory === 'all' ? 'ספריית התוכן ריקה' : 'אין תוכן בקטגוריה זו'}
+            {activeCategory === 'all' ? t('clientLibrary.empty') : t('clientLibrary.emptyCat')}
           </Text>
-          <Text style={styles.emptySub}>Kirsten תוסיף תוכן בקרוב</Text>
+          <Text style={styles.emptySub}>{t('clientLibrary.comingSoon')}</Text>
         </View>
       ) : (
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
           <View style={styles.grid}>
             {filtered.map((item) => (
-              <ContentCard key={item.id} item={item} onPress={() => openItem(item)} />
+              <ContentCard key={item.id} item={item} onPress={() => openItem(item)} categories={CATEGORIES} typeMeta={TYPE_META} />
             ))}
           </View>
           <View style={{ height: 32 }} />
@@ -198,7 +196,7 @@ export default function LibraryScreen() {
             </TouchableOpacity>
             <View style={styles.videoTypeBadge}>
               <Ionicons name="play-circle" size={14} color={TYPE_META.video.color} />
-              <Text style={styles.videoTypeBadgeText}>וידאו</Text>
+              <Text style={styles.videoTypeBadgeText}>{t('library.video')}</Text>
             </View>
             <View style={{ width: 40 }} />
           </View>
@@ -271,12 +269,12 @@ export default function LibraryScreen() {
                   style={styles.watchBtnGradient}
                 >
                   <Ionicons name="play-circle" size={22} color="#fff" />
-                  <Text style={styles.watchBtnText}>צפה בוידאו</Text>
+                  <Text style={styles.watchBtnText}>{t('clientLibrary.watchVideo')}</Text>
                 </LinearGradient>
               </TouchableOpacity>
 
               {isYouTubeUrl(selectedVideo.url) && (
-                <Text style={styles.watchNote}>הוידאו יפתח בדפדפן המובנה</Text>
+                <Text style={styles.watchNote}>{t('clientLibrary.videoOpenBrowser')}</Text>
               )}
             </ScrollView>
           )}
@@ -297,7 +295,7 @@ export default function LibraryScreen() {
             {selectedArticle && (
               <View style={styles.articleHeaderText}>
                 <Text style={styles.articleCategoryBadge}>
-                  {CATEGORIES.find((c) => c.key === selectedArticle.category)?.label ?? 'כללי'}
+                  {CATEGORIES.find((c) => c.key === selectedArticle.category)?.label ?? t('library.general')}
                 </Text>
               </View>
             )}
@@ -320,9 +318,9 @@ export default function LibraryScreen() {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function ContentCard({ item, onPress }) {
-  const meta = TYPE_META[item.type] ?? TYPE_META.article;
-  const catInfo = CATEGORIES.find((c) => c.key === item.category) ?? CATEGORIES[CATEGORIES.length - 1];
+function ContentCard({ item, onPress, categories, typeMeta }) {
+  const meta = typeMeta[item.type] ?? typeMeta.article;
+  const catInfo = categories.find((c) => c.key === item.category) ?? categories[categories.length - 1];
   const isVideo = item.type === 'video';
   const thumbUri = isVideo ? getYouTubeThumbnail(item.url) : null;
 
@@ -433,7 +431,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Video thumbnail on card
   cardThumbWrap: {
     width: 88,
     height: 68,
@@ -492,12 +489,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: TYPE_META.video.color + '22',
+    backgroundColor: '#E91E63' + '22',
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
-  videoTypeBadgeText: { ...typography.caption, color: TYPE_META.video.color, fontWeight: '700' },
+  videoTypeBadgeText: { ...typography.caption, color: '#E91E63', fontWeight: '700' },
   videoModalContent: { padding: 20, gap: 20, paddingBottom: 40 },
 
   // Thumbnail

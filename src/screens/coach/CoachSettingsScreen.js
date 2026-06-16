@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useCoachSettings } from '../../hooks/useCoachSettings';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients, dark } from '../../theme/colors';
 
 function Eyebrow({ children, accent, style }) {
@@ -21,6 +22,7 @@ function Eyebrow({ children, accent, style }) {
 
 export default function CoachSettingsScreen({ navigation }) {
   const { settings, loading } = useCoachSettings();
+  const { t, language, setLanguage } = useLanguage();
   const [bitLink, setBitLink] = useState('');
   const [sessionPrice, setSessionPrice] = useState('');
   const [saving, setSaving] = useState(false);
@@ -36,7 +38,7 @@ export default function CoachSettingsScreen({ navigation }) {
     const trimmedLink = bitLink.trim();
     const trimmedPrice = sessionPrice.trim();
     if (trimmedLink && !trimmedLink.startsWith('http')) {
-      Alert.alert('Invalid Link', 'The link must start with https://\nExample: https://bit.me/kjfitness');
+      Alert.alert(t('settings.invalidLink'), t('settings.invalidLinkMsg'));
       return;
     }
     setSaving(true);
@@ -46,10 +48,10 @@ export default function CoachSettingsScreen({ navigation }) {
         { bitLink: trimmedLink, sessionPrice: trimmedPrice },
         { merge: true },
       );
-      Alert.alert('Saved', 'Settings updated successfully.');
+      Alert.alert(t('settings.saved'), t('settings.savedMsg'));
       navigation.goBack();
     } catch {
-      Alert.alert('Error', 'Could not save. Please try again.');
+      Alert.alert(t('settings.error'), t('settings.errorMsg'));
     } finally {
       setSaving(false);
     }
@@ -81,8 +83,41 @@ export default function CoachSettingsScreen({ navigation }) {
               <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Eyebrow>SETTINGS</Eyebrow>
-              <Text style={styles.headerTitle}>Payment</Text>
+              <Eyebrow>{t('settings.eyebrow')}</Eyebrow>
+              <Text style={styles.headerTitle}>{t('settings.paymentTitle')}</Text>
+            </View>
+          </View>
+
+          {/* Language card */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardIconWrap}>
+                <Ionicons name="language-outline" size={20} color={colors.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{t('settings.language')}</Text>
+                <Text style={styles.cardSub}>{t('settings.languageSub')}</Text>
+              </View>
+            </View>
+            <View style={styles.langRow}>
+              <TouchableOpacity
+                style={[styles.langBtn, language === 'en' && styles.langBtnActive]}
+                onPress={() => setLanguage('en')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.langBtnText, language === 'en' && styles.langBtnTextActive]}>
+                  English
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.langBtn, language === 'he' && styles.langBtnActive]}
+                onPress={() => setLanguage('he')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.langBtnText, language === 'he' && styles.langBtnTextActive]}>
+                  עברית
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -93,15 +128,15 @@ export default function CoachSettingsScreen({ navigation }) {
                 <Ionicons name="link-outline" size={20} color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>Bit Payment Link</Text>
-                <Text style={styles.cardSub}>Clients will be directed here to pay</Text>
+                <Text style={styles.cardTitle}>{t('settings.bitLink')}</Text>
+                <Text style={styles.cardSub}>{t('settings.bitLinkSub')}</Text>
               </View>
             </View>
             <TextInput
               style={styles.input}
               value={bitLink}
               onChangeText={setBitLink}
-              placeholder="https://bit.me/kjfitness"
+              placeholder={t('settings.bitPlaceholder')}
               placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
@@ -110,7 +145,7 @@ export default function CoachSettingsScreen({ navigation }) {
             />
             <View style={styles.hint}>
               <Ionicons name="information-circle-outline" size={13} color={colors.textMuted} />
-              <Text style={styles.hintText}>Open the Bit app → Profile → Share personal link</Text>
+              <Text style={styles.hintText}>{t('settings.bitHint')}</Text>
             </View>
           </View>
 
@@ -121,15 +156,15 @@ export default function CoachSettingsScreen({ navigation }) {
                 <Ionicons name="cash-outline" size={20} color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>Session Price (₪)</Text>
-                <Text style={styles.cardSub}>Shown to clients when booking</Text>
+                <Text style={styles.cardTitle}>{t('settings.sessionPrice')}</Text>
+                <Text style={styles.cardSub}>{t('settings.sessionPriceSub')}</Text>
               </View>
             </View>
             <TextInput
               style={styles.input}
               value={sessionPrice}
               onChangeText={setSessionPrice}
-              placeholder="180"
+              placeholder={t('settings.pricePlaceholder')}
               placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
               returnKeyType="done"
@@ -140,9 +175,7 @@ export default function CoachSettingsScreen({ navigation }) {
           {/* Info box */}
           <View style={styles.infoBox}>
             <Ionicons name="notifications-outline" size={16} color={colors.accent} style={{ marginTop: 1 }} />
-            <Text style={styles.infoText}>
-              After a client pays via Bit, mark the booking as paid from the schedule tab.
-            </Text>
+            <Text style={styles.infoText}>{t('settings.infoText')}</Text>
           </View>
 
           {/* Save button */}
@@ -158,7 +191,7 @@ export default function CoachSettingsScreen({ navigation }) {
               ) : (
                 <View style={styles.saveBtnInner}>
                   <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                  <Text style={styles.saveBtnText}>Save Settings</Text>
+                  <Text style={styles.saveBtnText}>{t('settings.save')}</Text>
                 </View>
               )}
             </LinearGradient>
@@ -202,6 +235,18 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },
   cardSub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, marginTop: 2 },
+
+  langRow: { flexDirection: 'row', gap: 10 },
+  langBtn: {
+    flex: 1, paddingVertical: 12, borderRadius: 12,
+    backgroundColor: dark.bg2, borderWidth: 1, borderColor: dark.line,
+    alignItems: 'center',
+  },
+  langBtnActive: {
+    backgroundColor: 'rgba(229,57,53,0.15)', borderColor: colors.accent,
+  },
+  langBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textMuted },
+  langBtnTextActive: { color: colors.accent },
 
   input: {
     backgroundColor: dark.bg2, borderRadius: 14,

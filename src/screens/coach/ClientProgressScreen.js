@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
+import { useLanguage } from '../../context/LanguageContext';
 import { WeeklyBarsChart, TypeBreakdownChart, ActivityGridChart } from '../../components/ProgressCharts';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -53,15 +54,6 @@ function startOfWeek(date) {
   return toISO(d);
 }
 
-function formatEntryDate(iso) {
-  const d = new Date(iso + 'T00:00:00');
-  const today = toISO(new Date());
-  const yesterday = toISO(new Date(Date.now() - 86400000));
-  if (iso === today) return 'היום';
-  if (iso === yesterday) return 'אתמול';
-  return d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'short' });
-}
-
 function calcStreak(entries) {
   if (!entries.length) return 0;
   const dates = [...new Set(entries.map((e) => e.date))].sort().reverse();
@@ -79,6 +71,7 @@ function calcStreak(entries) {
 
 export default function ClientProgressScreen({ route, navigation }) {
   const { clientId, clientName } = route.params;
+  const { t, isRTL } = useLanguage();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState('charts');
@@ -113,6 +106,15 @@ export default function ClientProgressScreen({ route, navigation }) {
   }, {});
   const topType = Object.entries(typeBreakdown).sort(([, a], [, b]) => b - a)[0];
 
+  function formatEntryDate(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    const today = toISO(new Date());
+    const yesterday = toISO(new Date(Date.now() - 86400000));
+    if (iso === today) return t('clientProgress.today');
+    if (iso === yesterday) return t('clientProgress.yesterday');
+    return d.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'short' });
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -124,7 +126,7 @@ export default function ClientProgressScreen({ route, navigation }) {
             onPress={() => navigation.goBack()}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Ionicons name="chevron-back" size={24} color={colors.primary} />
+            <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={24} color={colors.primary} />
           </TouchableOpacity>
           <View style={styles.headerMain}>
             <View style={styles.clientAvatar}>
@@ -132,17 +134,17 @@ export default function ClientProgressScreen({ route, navigation }) {
             </View>
             <View>
               <Text style={styles.headerTitle}>{clientName}</Text>
-              <Text style={styles.headerSub}>{entries.length} אימונים סה"כ</Text>
+              <Text style={styles.headerSub}>{t('clientProgress.totalWorkouts', { count: entries.length })}</Text>
             </View>
           </View>
         </LinearGradient>
 
         {/* Stats grid */}
         <View style={styles.statsGrid}>
-          <StatCard value={thisWeek}  label="השבוע"       icon="🔥" highlight={thisWeek >= 3} />
-          <StatCard value={thisMonth} label="החודש"       icon="📅" />
-          <StatCard value={`${streak}d`} label="רצף"     icon="⚡" highlight={streak >= 3} />
-          <StatCard value={`${Math.round(totalMinutes / 60)}h`} label='סה"כ שעות' icon="⏱️" />
+          <StatCard value={thisWeek}  label={t('clientProgress.thisWeek')}   icon="🔥" highlight={thisWeek >= 3} />
+          <StatCard value={thisMonth} label={t('clientProgress.thisMonth')}  icon="📅" />
+          <StatCard value={`${streak}d`} label={t('clientProgress.streak')} icon="⚡" highlight={streak >= 3} />
+          <StatCard value={`${Math.round(totalMinutes / 60)}h`} label={t('clientProgress.totalHours')} icon="⏱️" />
         </View>
 
         {/* Favourite workout type */}
@@ -150,9 +152,9 @@ export default function ClientProgressScreen({ route, navigation }) {
           <View style={styles.topTypeCard}>
             <Text style={styles.topTypeEmoji}>{getTypeInfo(topType[0]).emoji}</Text>
             <View style={styles.topTypeText}>
-              <Text style={styles.topTypeLabel}>אימון מועדף</Text>
+              <Text style={styles.topTypeLabel}>{t('clientProgress.favorite')}</Text>
               <Text style={styles.topTypeValue}>
-                {getTypeInfo(topType[0]).label} · {topType[1]} פעמים
+                {getTypeInfo(topType[0]).label} · {topType[1]} {t('clientProgress.times')}
               </Text>
             </View>
           </View>
@@ -165,7 +167,7 @@ export default function ClientProgressScreen({ route, navigation }) {
             onPress={() => setActiveView('charts')}
           >
             <Text style={[styles.toggleText, activeView === 'charts' && styles.toggleTextActive]}>
-              📊 גרפים
+              {t('clientProgress.charts')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -173,7 +175,7 @@ export default function ClientProgressScreen({ route, navigation }) {
             onPress={() => setActiveView('history')}
           >
             <Text style={[styles.toggleText, activeView === 'history' && styles.toggleTextActive]}>
-              📋 היסטוריה
+              {t('clientProgress.history')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -186,7 +188,7 @@ export default function ClientProgressScreen({ route, navigation }) {
             ) : entries.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyIcon}>📊</Text>
-                <Text style={styles.emptyTitle}>עוד אין נתונים להצגה</Text>
+                <Text style={styles.emptyTitle}>{t('clientProgress.noData')}</Text>
               </View>
             ) : (
               <>
@@ -201,18 +203,18 @@ export default function ClientProgressScreen({ route, navigation }) {
         {/* History view */}
         {activeView === 'history' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>היסטוריית אימונים</Text>
+            <Text style={styles.sectionTitle}>{t('clientProgress.historyTitle')}</Text>
 
             {loading ? (
               <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
             ) : entries.length === 0 ? (
               <View style={styles.empty}>
                 <Text style={styles.emptyIcon}>🏋️</Text>
-                <Text style={styles.emptyTitle}>עוד לא תועד אימון</Text>
+                <Text style={styles.emptyTitle}>{t('clientProgress.noWorkouts')}</Text>
               </View>
             ) : (
               entries.map((entry) => (
-                <EntryCard key={entry.id} entry={entry} />
+                <EntryCard key={entry.id} entry={entry} formatEntryDate={formatEntryDate} t={t} />
               ))
             )}
           </View>
@@ -236,7 +238,7 @@ function StatCard({ value, label, icon, highlight }) {
   );
 }
 
-function EntryCard({ entry }) {
+function EntryCard({ entry, formatEntryDate, t }) {
   const type = getTypeInfo(entry.type);
   return (
     <View style={styles.entryCard}>
@@ -248,7 +250,7 @@ function EntryCard({ entry }) {
           <Text style={styles.entryType}>{type.label}</Text>
           <Text style={styles.entryDate}>{formatEntryDate(entry.date)}</Text>
         </View>
-        <Text style={styles.entryDuration}>{entry.duration} דקות</Text>
+        <Text style={styles.entryDuration}>{entry.duration} {t('clientProgress.minutes')}</Text>
         {entry.notes ? (
           <Text style={styles.entryNotes} numberOfLines={2}>{entry.notes}</Text>
         ) : null}

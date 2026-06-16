@@ -11,18 +11,20 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 export default function ForgotPasswordScreen({ navigation }) {
   const { resetPassword, error, setError } = useAuth();
+  const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
   const handleReset = async () => {
     if (!email.trim()) {
-      setError('נא להזין כתובת אימייל.');
+      setError(t('forgot.emailRequired'));
       return;
     }
     setSending(true);
@@ -44,33 +46,29 @@ export default function ForgotPasswordScreen({ navigation }) {
       <View style={styles.inner}>
         {/* Back button */}
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backText}>← חזרה</Text>
+          <Text style={styles.backText}>{t('forgot.back')}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>איפוס סיסמה</Text>
-        <Text style={styles.subtitle}>
-          הזן את כתובת האימייל שלך ונשלח לך קישור לאיפוס הסיסמה.
-        </Text>
+        <Text style={styles.title}>{t('forgot.title')}</Text>
+        <Text style={styles.subtitle}>{t('forgot.subtitle')}</Text>
 
         {sent ? (
           <View style={styles.successCard}>
             <Text style={styles.successIcon}>✉️</Text>
-            <Text style={styles.successTitle}>הקישור נשלח!</Text>
-            <Text style={styles.successText}>
-              בדוק את תיבת הדואר שלך ועקוב אחר ההוראות לאיפוס הסיסמה.
-            </Text>
+            <Text style={styles.successTitle}>{t('forgot.linkSent')}</Text>
+            <Text style={styles.successText}>{t('forgot.checkInbox')}</Text>
             <TouchableOpacity style={styles.backToLoginButton} onPress={() => navigation.goBack()}>
-              <Text style={styles.backToLoginText}>חזרה לכניסה</Text>
+              <Text style={styles.backToLoginText}>{t('forgot.backToLogin')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.card}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>כתובת אימייל</Text>
+              <Text style={styles.label}>{t('forgot.emailLabel')}</Text>
               <TextInput
                 style={styles.input}
                 value={email}
-                onChangeText={(t) => { setEmail(t); setError(null); }}
+                onChangeText={(v) => { setEmail(v); setError(null); }}
                 placeholder="your@email.com"
                 placeholderTextColor={colors.textMuted}
                 keyboardType="email-address"
@@ -93,7 +91,7 @@ export default function ForgotPasswordScreen({ navigation }) {
                 {sending ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.resetButtonText}>שלח קישור</Text>
+                  <Text style={styles.resetButtonText}>{t('forgot.send')}</Text>
                 )}
               </LinearGradient>
             </TouchableOpacity>
@@ -156,7 +154,6 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     color: colors.textPrimary,
     ...typography.body,
-    textAlign: 'right',
   },
   errorText: {
     ...typography.bodySmall,

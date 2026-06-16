@@ -26,30 +26,31 @@ import {
 } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const TYPES = [
-  { key: 'video',   label: 'וידאו',  emoji: '📹', hint: 'הדבק קישור YouTube' },
-  { key: 'article', label: 'מאמר',   emoji: '📝', hint: 'כתוב תוכן ישירות' },
-  { key: 'image',   label: 'תמונה',  emoji: '🖼', hint: 'הדבק קישור לתמונה' },
-];
-
-const CATEGORIES = [
-  { key: 'workout',    label: 'אימונים',  emoji: '💪' },
-  { key: 'nutrition',  label: 'תזונה',    emoji: '🥗' },
-  { key: 'motivation', label: 'מוטיבציה', emoji: '🔥' },
-  { key: 'technique',  label: 'טכניקה',   emoji: '🎯' },
-  { key: 'general',    label: 'כללי',     emoji: '📌' },
-];
 
 const TYPE_COLOR = { video: '#E91E63', article: '#FF9800', image: '#9C27B0' };
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function CoachLibraryScreen({ navigation }) {
+  const { t, isRTL } = useLanguage();
+
+  const TYPES = [
+    { key: 'video',   label: t('library.video'),   emoji: '📹', hint: t('library.pasteYoutube') },
+    { key: 'article', label: t('library.article'),  emoji: '📝', hint: t('library.writeContent') },
+    { key: 'image',   label: t('library.image'),    emoji: '🖼', hint: t('library.pasteImage') },
+  ];
+
+  const CATEGORIES = [
+    { key: 'workout',    label: t('library.workouts'),   emoji: '💪' },
+    { key: 'nutrition',  label: t('library.nutrition'),  emoji: '🥗' },
+    { key: 'motivation', label: t('library.motivation'), emoji: '🔥' },
+    { key: 'technique',  label: t('library.technique'),  emoji: '🎯' },
+    { key: 'general',    label: t('library.general'),    emoji: '📌' },
+  ];
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -89,15 +90,15 @@ export default function CoachLibraryScreen({ navigation }) {
   // ── Save new item ─────────────────────────────────────────────────────────
   const saveItem = useCallback(async () => {
     if (!title.trim()) {
-      Alert.alert('חסר כותרת', 'נא להזין כותרת לפריט.');
+      Alert.alert(t('library.titleRequired'), t('library.titleRequiredMsg'));
       return;
     }
     if (type !== 'article' && !url.trim()) {
-      Alert.alert('חסר קישור', 'נא להזין קישור לתוכן.');
+      Alert.alert(t('library.linkRequired'), t('library.linkRequiredMsg'));
       return;
     }
     if (type === 'article' && !body.trim()) {
-      Alert.alert('חסר תוכן', 'נא לכתוב את תוכן המאמר.');
+      Alert.alert(t('library.contentRequired'), t('library.contentRequiredMsg'));
       return;
     }
     setSaving(true);
@@ -115,11 +116,11 @@ export default function CoachLibraryScreen({ navigation }) {
       });
       setShowModal(false);
     } catch {
-      Alert.alert('שגיאה', 'לא הצלחנו לשמור. נסה שוב.');
+      Alert.alert(t('library.error'), t('library.errorMsg'));
     } finally {
       setSaving(false);
     }
-  }, [title, description, type, category, url, body, isPublished]);
+  }, [title, description, type, category, url, body, isPublished, t]);
 
   // ── Toggle published ──────────────────────────────────────────────────────
   const togglePublished = useCallback(async (item) => {
@@ -130,27 +131,27 @@ export default function CoachLibraryScreen({ navigation }) {
         publishedAt: next ? serverTimestamp() : null,
       });
     } catch {
-      Alert.alert('שגיאה', 'לא הצלחנו לעדכן.');
+      Alert.alert(t('library.error'), t('library.errorMsg'));
     }
-  }, []);
+  }, [t]);
 
   // ── Delete item ───────────────────────────────────────────────────────────
   const deleteItem = useCallback((item) => {
-    Alert.alert('מחיקת פריט', `למחוק את "${item.title}"?`, [
-      { text: 'ביטול', style: 'cancel' },
+    Alert.alert(t('library.delete'), `${t('library.deleteConfirm') ? '' : ''}${item.title}?`, [
+      { text: t('library.cancel'), style: 'cancel' },
       {
-        text: 'מחק',
+        text: t('library.delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deleteDoc(doc(db, 'library', item.id));
           } catch {
-            Alert.alert('שגיאה', 'לא הצלחנו למחוק.');
+            Alert.alert(t('library.error'), t('library.deleteError'));
           }
         },
       },
     ]);
-  }, []);
+  }, [t]);
 
   const published = items.filter((i) => i.isPublished).length;
   const drafts = items.filter((i) => !i.isPublished).length;
@@ -166,19 +167,20 @@ export default function CoachLibraryScreen({ navigation }) {
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
-          <Ionicons name="chevron-back" size={24} color={colors.primary} />
+          <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={24} color={colors.primary} />
         </TouchableOpacity>
         <View style={styles.headerMain}>
           <View>
-            <Text style={styles.headerTitle}>ספריית תוכן</Text>
+            <Text style={styles.headerEyebrow}>{t('library.eyebrow')}</Text>
+            <Text style={styles.headerTitle}>{t('library.title')}</Text>
             <Text style={styles.headerSub}>
-              {published} פורסמו · {drafts} טיוטות
+              {t('library.published')} {published} · {t('library.drafts')} {drafts}
             </Text>
           </View>
           <TouchableOpacity style={styles.addBtn} onPress={openModal} activeOpacity={0.85}>
             <LinearGradient colors={gradients.primary} style={styles.addBtnGradient}>
               <Ionicons name="add" size={20} color="#fff" />
-              <Text style={styles.addBtnText}>הוסף</Text>
+              <Text style={styles.addBtnText}>{t('library.add')}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -192,12 +194,12 @@ export default function CoachLibraryScreen({ navigation }) {
       ) : items.length === 0 ? (
         <View style={styles.center}>
           <Text style={styles.emptyIcon}>📚</Text>
-          <Text style={styles.emptyTitle}>הספרייה ריקה</Text>
-          <Text style={styles.emptySub}>לחץ על "הוסף" כדי ליצור תוכן ראשון</Text>
+          <Text style={styles.emptyTitle}>{t('library.empty')}</Text>
+          <Text style={styles.emptySub}>{t('library.emptyAddHint')}</Text>
           <TouchableOpacity style={styles.emptyAddBtn} onPress={openModal}>
             <LinearGradient colors={gradients.primary} style={styles.emptyAddGradient}>
               <Ionicons name="add" size={18} color="#fff" />
-              <Text style={styles.emptyAddText}>הוסף פריט</Text>
+              <Text style={styles.emptyAddText}>{t('library.newItem')}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -210,6 +212,9 @@ export default function CoachLibraryScreen({ navigation }) {
                 item={item}
                 onToggle={() => togglePublished(item)}
                 onDelete={() => deleteItem(item)}
+                categories={CATEGORIES}
+                types={TYPES}
+                t={t}
               />
             ))}
           </View>
@@ -227,13 +232,13 @@ export default function CoachLibraryScreen({ navigation }) {
           {/* Modal header */}
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowModal(false)} disabled={saving}>
-              <Text style={styles.modalCancel}>ביטול</Text>
+              <Text style={styles.modalCancel}>{t('library.cancel')}</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>פריט חדש</Text>
+            <Text style={styles.modalTitle}>{t('library.newItem')}</Text>
             <TouchableOpacity onPress={saveItem} disabled={saving}>
               {saving
                 ? <ActivityIndicator color={colors.primary} size="small" />
-                : <Text style={styles.modalSave}>שמור</Text>
+                : <Text style={styles.modalSave}>{t('library.save')}</Text>
               }
             </TouchableOpacity>
           </View>
@@ -241,24 +246,24 @@ export default function CoachLibraryScreen({ navigation }) {
           <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
 
             {/* Type selector */}
-            <FormLabel>סוג תוכן</FormLabel>
+            <FormLabel>{t('library.contentType')}</FormLabel>
             <View style={styles.typeRow}>
-              {TYPES.map((t) => (
+              {TYPES.map((tp) => (
                 <TouchableOpacity
-                  key={t.key}
-                  style={[styles.typeChip, type === t.key && styles.typeChipSelected]}
-                  onPress={() => setType(t.key)}
+                  key={tp.key}
+                  style={[styles.typeChip, type === tp.key && styles.typeChipSelected]}
+                  onPress={() => setType(tp.key)}
                 >
-                  <Text style={styles.typeEmoji}>{t.emoji}</Text>
-                  <Text style={[styles.typeLabel, type === t.key && styles.typeLabelSelected]}>
-                    {t.label}
+                  <Text style={styles.typeEmoji}>{tp.emoji}</Text>
+                  <Text style={[styles.typeLabel, type === tp.key && styles.typeLabelSelected]}>
+                    {tp.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             {/* Category selector */}
-            <FormLabel>קטגוריה</FormLabel>
+            <FormLabel>{t('library.category')}</FormLabel>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRow}>
               {CATEGORIES.map((c) => (
                 <TouchableOpacity
@@ -275,51 +280,51 @@ export default function CoachLibraryScreen({ navigation }) {
             </ScrollView>
 
             {/* Title */}
-            <FormLabel>כותרת *</FormLabel>
+            <FormLabel>{t('library.titleLabel')}</FormLabel>
             <TextInput
               style={styles.textInput}
               value={title}
               onChangeText={setTitle}
-              placeholder="כותרת הפריט"
+              placeholder={t('library.titlePlaceholder') || 'Title'}
               placeholderTextColor={colors.textMuted}
               maxLength={100}
-              textAlign="right"
+              textAlign={isRTL ? 'right' : 'left'}
             />
 
             {/* Description */}
-            <FormLabel>תיאור קצר (אופציונלי)</FormLabel>
+            <FormLabel>{t('library.descriptionOptional')}</FormLabel>
             <TextInput
               style={[styles.textInput, styles.textInputMulti]}
               value={description}
               onChangeText={setDescription}
-              placeholder="תיאור קצר שיופיע בכרטיס"
+              placeholder={t('library.descriptionOptional')}
               placeholderTextColor={colors.textMuted}
               multiline
               maxLength={200}
-              textAlign="right"
+              textAlign={isRTL ? 'right' : 'left'}
               textAlignVertical="top"
             />
 
             {/* URL or body */}
             {type === 'article' ? (
               <>
-                <FormLabel>תוכן המאמר *</FormLabel>
+                <FormLabel>{t('library.articleContent')}</FormLabel>
                 <TextInput
                   style={[styles.textInput, styles.textInputArticle]}
                   value={body}
                   onChangeText={setBody}
-                  placeholder="כתוב את תוכן המאמר כאן..."
+                  placeholder={t('library.articleContentPlaceholder')}
                   placeholderTextColor={colors.textMuted}
                   multiline
                   maxLength={5000}
-                  textAlign="right"
+                  textAlign={isRTL ? 'right' : 'left'}
                   textAlignVertical="top"
                 />
               </>
             ) : (
               <>
                 <FormLabel>
-                  {TYPES.find((t) => t.key === type)?.hint ?? 'קישור'}
+                  {TYPES.find((tp) => tp.key === type)?.hint ?? t('library.urlLabel')}
                   {' *'}
                 </FormLabel>
                 <TextInput
@@ -338,9 +343,9 @@ export default function CoachLibraryScreen({ navigation }) {
             {/* Publish toggle */}
             <View style={styles.publishRow}>
               <View>
-                <Text style={styles.publishLabel}>פרסם מיד</Text>
+                <Text style={styles.publishLabel}>{t('library.publishNow')}</Text>
                 <Text style={styles.publishSub}>
-                  {isPublished ? 'יהיה גלוי ללקוחות' : 'יישמר כטיוטה'}
+                  {isPublished ? t('library.visibleToClients') : t('library.saveDraftSub')}
                 </Text>
               </View>
               <Switch
@@ -360,15 +365,15 @@ export default function CoachLibraryScreen({ navigation }) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function LibraryItemRow({ item, onToggle, onDelete }) {
+function LibraryItemRow({ item, onToggle, onDelete, categories, types, t }) {
   const color = TYPE_COLOR[item.type] ?? '#888';
-  const catInfo = CATEGORIES.find((c) => c.key === item.category) ?? CATEGORIES[CATEGORIES.length - 1];
+  const catInfo = categories.find((c) => c.key === item.category) ?? categories[categories.length - 1];
 
   return (
     <View style={styles.itemRow}>
       <View style={[styles.itemIconWrap, { backgroundColor: color + '22' }]}>
         <Text style={styles.itemTypeEmoji}>
-          {TYPES.find((t) => t.key === item.type)?.emoji ?? '📄'}
+          {types.find((tp) => tp.key === item.type)?.emoji ?? '📄'}
         </Text>
       </View>
 
@@ -387,7 +392,7 @@ function LibraryItemRow({ item, onToggle, onDelete }) {
           onPress={onToggle}
         >
           <Text style={[styles.publishToggleText, item.isPublished && styles.publishToggleTextActive]}>
-            {item.isPublished ? 'פורסם' : 'טיוטה'}
+            {item.isPublished ? t('library.published') : t('library.drafts')}
           </Text>
         </TouchableOpacity>
 
@@ -417,6 +422,7 @@ const styles = StyleSheet.create({
   // Header
   header: { paddingTop: 16, paddingBottom: 20, paddingHorizontal: 16 },
   backBtn: { marginBottom: 12 },
+  headerEyebrow: { ...typography.caption, color: colors.textSecondary, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 },
   headerMain: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerTitle: { ...typography.h2, color: colors.textPrimary },
   headerSub: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 4 },

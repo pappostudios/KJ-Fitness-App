@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
@@ -30,6 +31,7 @@ GoogleSignin.configure({
 
 export default function LoginScreen({ navigation }) {
   const { signIn, signInWithGoogle, error, setError } = useAuth();
+  const { t } = useLanguage();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,7 +55,6 @@ export default function LoginScreen({ navigation }) {
       await signInWithGoogle(idToken, null);
     } catch (e) {
       if (e.code !== statusCodes.SIGN_IN_CANCELLED) {
-        // Show diagnostic info so we can identify the root cause
         const code = e.code ?? 'no code';
         const msg = e.message ?? 'no message';
         Alert.alert(
@@ -70,7 +71,7 @@ export default function LoginScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      setError && setError('Please enter your email and password.');
+      setError && setError(t('auth.emailRequired'));
       return;
     }
     setSigningIn(true);
@@ -118,17 +119,17 @@ export default function LoginScreen({ navigation }) {
 
         {/* Form area */}
         <View style={styles.form}>
-          <Text style={styles.eyebrow}>Welcome to KJ Fitness</Text>
-          <Text style={styles.tagline}>Coached. Not programmed.</Text>
+          <Text style={styles.eyebrow}>{t('auth.welcome')}</Text>
+          <Text style={styles.tagline}>{t('auth.tagline')}</Text>
 
           {/* Email */}
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>EMAIL</Text>
+            <Text style={styles.fieldLabel}>{t('auth.email')}</Text>
             <TextInput
               style={styles.input}
               value={email}
-              onChangeText={(t) => { setEmail(t); setError && setError(null); }}
-              placeholder="your@email.com"
+              onChangeText={(v) => { setEmail(v); setError && setError(null); }}
+              placeholder={t('auth.emailPlaceholder')}
               placeholderTextColor={colors.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -140,12 +141,12 @@ export default function LoginScreen({ navigation }) {
 
           {/* Password */}
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>PASSWORD</Text>
+            <Text style={styles.fieldLabel}>{t('auth.password')}</Text>
             <View style={styles.passwordRow}>
               <TextInput
                 style={[styles.input, styles.passwordInput]}
                 value={password}
-                onChangeText={(t) => { setPassword(t); setError && setError(null); }}
+                onChangeText={(v) => { setPassword(v); setError && setError(null); }}
                 placeholder="••••••••"
                 placeholderTextColor={colors.textMuted}
                 secureTextEntry={!showPassword}
@@ -173,7 +174,7 @@ export default function LoginScreen({ navigation }) {
             onPress={() => navigation?.navigate('ForgotPassword')}
             activeOpacity={0.7}
           >
-            <Text style={styles.forgotText}>Forgot password?</Text>
+            <Text style={styles.forgotText}>{t('auth.forgot')}</Text>
           </TouchableOpacity>
 
           {/* Error */}
@@ -195,7 +196,7 @@ export default function LoginScreen({ navigation }) {
             <LinearGradient colors={gradients.primary} style={styles.loginGradient}>
               {signingIn
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.loginBtnText}>Log in</Text>
+                : <Text style={styles.loginBtnText}>{t('auth.login')}</Text>
               }
             </LinearGradient>
           </TouchableOpacity>
@@ -203,11 +204,11 @@ export default function LoginScreen({ navigation }) {
           {/* Divider */}
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerLabel}>or</Text>
+            <Text style={styles.dividerLabel}>{t('auth.or')}</Text>
             <View style={styles.dividerLine} />
           </View>
 
-          {/* Google Sign-In — uses expo-auth-session, works in Expo Go */}
+          {/* Google Sign-In */}
           <TouchableOpacity
             style={[styles.googleBtn, busy && { opacity: 0.6 }]}
             onPress={handleGooglePress}
@@ -218,7 +219,7 @@ export default function LoginScreen({ navigation }) {
               ? <ActivityIndicator color="#333" />
               : <>
                   <Text style={styles.googleG}>G</Text>
-                  <Text style={styles.googleText}>Continue with Google</Text>
+                  <Text style={styles.googleText}>{t('auth.google')}</Text>
                 </>
             }
           </TouchableOpacity>
@@ -230,15 +231,15 @@ export default function LoginScreen({ navigation }) {
             activeOpacity={0.7}
           >
             <Text style={styles.signUpText}>
-              New client?{'  '}
-              <Text style={styles.signUpAccent}>Request access</Text>
+              {t('auth.newClient')}{'  '}
+              <Text style={styles.signUpAccent}>{t('auth.requestAccess')}</Text>
             </Text>
           </TouchableOpacity>
 
           <Text style={styles.legal}>
-            By signing in you accept the{' '}
+            {t('auth.legal')}{' '}
             <Text style={{ color: colors.textSecondary, textDecorationLine: 'underline' }}>
-              liability waiver
+              {t('auth.waiver')}
             </Text>.
           </Text>
         </View>

@@ -11,27 +11,27 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients, dark } from '../../theme/colors';
 import { MonthCalendar, WeekStrip, toISO, addMonths, MONTH_NAMES } from '../../components/CalendarView';
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const STATUS_CONFIG = {
-  pending_confirmation: { label: 'Awaiting Your Confirmation', color: '#F59E0B', icon: 'time-outline' },
-  confirmed:            { label: 'Confirmed',                  color: '#10B981', icon: 'checkmark-circle-outline' },
-  cancelled:            { label: 'Cancelled',                  color: '#EF4444', icon: 'close-circle-outline' },
-};
-
-const PAYMENT_CONFIG = {
-  unpaid:  { label: 'Payment Due',  color: '#EF4444' },
-  pending: { label: 'Payment Sent', color: '#F59E0B' },
-  paid:    { label: 'Paid ✓',       color: '#10B981' },
-};
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function ClientScheduleScreen() {
   const { user } = useAuth();
+  const { t, isRTL } = useLanguage();
+
+  const STATUS_CONFIG = {
+    pending_confirmation: { label: t('clientSchedule.awaitingConf'), color: '#F59E0B', icon: 'time-outline' },
+    confirmed:            { label: t('clientSchedule.confirmed'),    color: '#10B981', icon: 'checkmark-circle-outline' },
+    cancelled:            { label: t('clientSchedule.cancelled'),    color: '#EF4444', icon: 'close-circle-outline' },
+  };
+
+  const PAYMENT_CONFIG = {
+    unpaid:  { label: t('clientSchedule.paymentDue'),  color: '#EF4444' },
+    pending: { label: t('clientSchedule.paymentSent'), color: '#F59E0B' },
+    paid:    { label: t('clientSchedule.paid'),        color: '#10B981' },
+  };
 
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -87,20 +87,20 @@ export default function ClientScheduleScreen() {
         : prev,
       );
     } catch {
-      Alert.alert('Error', 'Could not confirm the session. Try again.');
+      Alert.alert(t('common.error'), 'Could not confirm the session. Try again.');
     } finally {
       setActing(false);
     }
-  }, []);
+  }, [t]);
 
   const declineSession = useCallback((booking) => {
     Alert.alert(
-      'Decline Session',
-      'Are you sure you want to decline this session?',
+      t('clientSchedule.declineTitle'),
+      t('clientSchedule.declineConfirm'),
       [
-        { text: 'No', style: 'cancel' },
+        { text: t('common.no'), style: 'cancel' },
         {
-          text: 'Decline', style: 'destructive',
+          text: t('clientSchedule.decline'), style: 'destructive',
           onPress: async () => {
             setActing(true);
             try {
@@ -111,7 +111,7 @@ export default function ClientScheduleScreen() {
               });
               setDetailBooking(null);
             } catch {
-              Alert.alert('Error', 'Could not decline the session. Try again.');
+              Alert.alert(t('common.error'), 'Could not decline the session. Try again.');
             } finally {
               setActing(false);
             }
@@ -119,16 +119,16 @@ export default function ClientScheduleScreen() {
         },
       ],
     );
-  }, []);
+  }, [t]);
 
   const requestPayment = useCallback(async (booking) => {
     Alert.alert(
-      'Confirm Payment',
-      'Mark this session as paid?',
+      t('clientSchedule.confirmPayment'),
+      t('clientSchedule.markAsPaidConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Pay Now',
+          text: t('clientSchedule.payNow'),
           onPress: async () => {
             setActing(true);
             try {
@@ -138,7 +138,7 @@ export default function ClientScheduleScreen() {
                 : prev,
               );
             } catch {
-              Alert.alert('Error', 'Could not update payment. Try again.');
+              Alert.alert(t('common.error'), 'Could not update payment. Try again.');
             } finally {
               setActing(false);
             }
@@ -146,7 +146,7 @@ export default function ClientScheduleScreen() {
         },
       ],
     );
-  }, []);
+  }, [t]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -154,10 +154,10 @@ export default function ClientScheduleScreen() {
 
       {/* Header */}
       <LinearGradient colors={gradients.hero} style={s.header}>
-        <Text style={s.headerTitle}>My Schedule</Text>
+        <Text style={s.headerTitle}>{t('clientSchedule.title')}</Text>
         <Text style={s.headerSub}>
-          {bookings.filter((b) => b.status !== 'cancelled').length} upcoming sessions
-          {pendingCount > 0 ? `  ·  ${pendingCount} need confirmation` : ''}
+          {t('clientSchedule.upcoming', { count: bookings.filter((b) => b.status !== 'cancelled').length })}
+          {pendingCount > 0 ? `  ·  ${t('clientSchedule.needConfirmation', { count: pendingCount })}` : ''}
         </Text>
 
         {/* View mode toggle */}
@@ -169,7 +169,7 @@ export default function ClientScheduleScreen() {
               onPress={() => setViewMode(m)}
             >
               <Text style={[s.modeBtnText, viewMode === m && s.modeBtnTextActive]}>
-                {m === 'month' ? 'Month' : 'Week'}
+                {m === 'month' ? t('schedule.month') : t('schedule.week')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -220,9 +220,9 @@ export default function ClientScheduleScreen() {
         {/* Selected day */}
         <View style={s.dayHeader}>
           <Text style={s.dayHeaderDate}>
-            {selectedDate === toISO(new Date()) ? 'Today' : selectedDate}
+            {selectedDate === toISO(new Date()) ? t('schedule.today') : selectedDate}
           </Text>
-          <Text style={s.dayHeaderCount}>{dayBookings.length} sessions</Text>
+          <Text style={s.dayHeaderCount}>{t('schedule.sessions', { count: dayBookings.length })}</Text>
         </View>
 
         {loading ? (
@@ -230,13 +230,13 @@ export default function ClientScheduleScreen() {
         ) : dayBookings.length === 0 ? (
           <View style={s.emptyDay}>
             <Ionicons name="calendar-outline" size={40} color={colors.textMuted} />
-            <Text style={s.emptyDayTitle}>No sessions this day</Text>
-            <Text style={s.emptyDaySub}>Your coach will schedule sessions for you</Text>
+            <Text style={s.emptyDayTitle}>{t('clientSchedule.noSessions')}</Text>
+            <Text style={s.emptyDaySub}>{t('clientSchedule.noSessionsSub')}</Text>
           </View>
         ) : (
           <View style={s.sessionsList}>
             {dayBookings.map((b) => (
-              <ClientSessionCard key={b.id} booking={b} onPress={() => setDetailBooking(b)} />
+              <ClientSessionCard key={b.id} booking={b} onPress={() => setDetailBooking(b)} t={t} />
             ))}
           </View>
         )}
@@ -266,7 +266,7 @@ export default function ClientScheduleScreen() {
                       color={detailBooking.sessionType === 'group' ? '#8B5CF6' : colors.accent}
                     />
                     <Text style={[s.typeBadgeText, detailBooking.sessionType === 'group' && s.typeBadgeTextGroup]}>
-                      {detailBooking.sessionType === 'group' ? 'Group Session' : 'Private Session'}
+                      {detailBooking.sessionType === 'group' ? t('clientSchedule.groupSession') : t('clientSchedule.privateSession')}
                     </Text>
                   </View>
                 </View>
@@ -275,7 +275,7 @@ export default function ClientScheduleScreen() {
                 {detailBooking.status === 'pending_confirmation' && (
                   <View style={s.pendingBanner}>
                     <Ionicons name="alert-circle-outline" size={18} color="#F59E0B" />
-                    <Text style={s.pendingBannerText}>This session needs your confirmation</Text>
+                    <Text style={s.pendingBannerText}>{t('clientSchedule.needsConfirmationMsg')}</Text>
                   </View>
                 )}
 
@@ -283,7 +283,7 @@ export default function ClientScheduleScreen() {
                 <View style={s.metaList}>
                   <MetaRow icon="calendar-outline" text={detailBooking.date} />
                   <MetaRow icon="time-outline" text={`${detailBooking.time}  ·  ${detailBooking.duration} min`} />
-                  <MetaRow icon="location-outline" text={detailBooking.location || 'Not specified'} />
+                  <MetaRow icon="location-outline" text={detailBooking.location || t('schedule.notSpecified')} />
                   <MetaRow
                     icon="card-outline"
                     text={PAYMENT_CONFIG[detailBooking.paymentStatus ?? 'unpaid']?.label}
@@ -306,7 +306,7 @@ export default function ClientScheduleScreen() {
                             ? <ActivityIndicator color="#fff" size="small" />
                             : <>
                                 <Ionicons name="checkmark" size={18} color="#fff" />
-                                <Text style={s.confirmBtnText}>Confirm Attendance</Text>
+                                <Text style={s.confirmBtnText}>{t('clientSchedule.confirmAttendance')}</Text>
                               </>
                           }
                         </LinearGradient>
@@ -318,7 +318,7 @@ export default function ClientScheduleScreen() {
                         activeOpacity={0.8}
                       >
                         <Ionicons name="close" size={16} color={colors.error} />
-                        <Text style={s.declineBtnText}>Decline</Text>
+                        <Text style={s.declineBtnText}>{t('clientSchedule.decline')}</Text>
                       </TouchableOpacity>
                     </>
                   )}
@@ -335,7 +335,7 @@ export default function ClientScheduleScreen() {
                           ? <ActivityIndicator color="#fff" size="small" />
                           : <>
                               <Ionicons name="card-outline" size={18} color="#fff" />
-                              <Text style={s.confirmBtnText}>Pay for Session</Text>
+                              <Text style={s.confirmBtnText}>{t('clientSchedule.payNow')}</Text>
                             </>
                         }
                       </LinearGradient>
@@ -344,7 +344,7 @@ export default function ClientScheduleScreen() {
                 </View>
 
                 <TouchableOpacity style={s.closeBtn} onPress={() => setDetailBooking(null)}>
-                  <Text style={s.closeBtnText}>Close</Text>
+                  <Text style={s.closeBtnText}>{t('common.close')}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -357,7 +357,12 @@ export default function ClientScheduleScreen() {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function ClientSessionCard({ booking, onPress }) {
+function ClientSessionCard({ booking, onPress, t }) {
+  const STATUS_CONFIG = {
+    pending_confirmation: { color: '#F59E0B', icon: 'time-outline' },
+    confirmed:            { color: '#10B981', icon: 'checkmark-circle-outline' },
+    cancelled:            { color: '#EF4444', icon: 'close-circle-outline' },
+  };
   const statusCfg = STATUS_CONFIG[booking.status] ?? { color: colors.textMuted, icon: 'ellipse-outline' };
   const isPending = booking.status === 'pending_confirmation';
 
@@ -373,7 +378,7 @@ function ClientSessionCard({ booking, onPress }) {
           <Text style={s.sessionTime}>{booking.time}</Text>
           <View style={[s.typePill, booking.sessionType === 'group' && s.typePillGroup]}>
             <Text style={[s.typePillText, booking.sessionType === 'group' && s.typePillTextGroup]}>
-              {booking.sessionType === 'group' ? 'Group' : 'Private'}
+              {booking.sessionType === 'group' ? t('clientSchedule.group') : t('clientSchedule.private')}
             </Text>
           </View>
         </View>
@@ -386,7 +391,7 @@ function ClientSessionCard({ booking, onPress }) {
         {isPending && (
           <View style={s.pendingTag}>
             <Ionicons name="alert-circle-outline" size={12} color="#F59E0B" />
-            <Text style={s.pendingTagText}>Tap to confirm</Text>
+            <Text style={s.pendingTagText}>{t('clientSchedule.tapToConfirm')}</Text>
           </View>
         )}
       </View>

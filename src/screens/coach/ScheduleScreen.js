@@ -13,27 +13,30 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+import { useLanguage } from '../../context/LanguageContext';
 import { MonthCalendar, WeekStrip, toISO, addDays, addMonths, MONTH_NAMES } from '../../components/CalendarView';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const DURATION_PRESETS = [30, 45, 60, 90];
 
-const STATUS_CONFIG = {
-  pending_confirmation: { label: 'Pending Confirmation', color: '#F59E0B' },
-  confirmed:            { label: 'Confirmed',            color: '#10B981' },
-  cancelled:            { label: 'Cancelled',            color: '#EF4444' },
-};
-
-const PAYMENT_CONFIG = {
-  unpaid:  { label: 'Unpaid',   color: '#EF4444' },
-  pending: { label: 'Pending',  color: '#F59E0B' },
-  paid:    { label: 'Paid ✓',   color: '#10B981' },
-};
-
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function ScheduleScreen({ navigation }) {
+  const { t, isRTL } = useLanguage();
+
+  const STATUS_CONFIG = {
+    pending_confirmation: { label: t('schedule.pending'), color: '#F59E0B' },
+    confirmed:            { label: t('schedule.confirmed'), color: '#10B981' },
+    cancelled:            { label: t('schedule.cancelled'), color: '#EF4444' },
+  };
+
+  const PAYMENT_CONFIG = {
+    unpaid:  { label: t('schedule.unpaidStatus'), color: '#EF4444' },
+    pending: { label: t('schedule.pendingPayment'), color: '#F59E0B' },
+    paid:    { label: t('schedule.paid'), color: '#10B981' },
+  };
+
   const [clients, setClients] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -127,12 +130,12 @@ export default function ScheduleScreen({ navigation }) {
   const saveSession = useCallback(async () => {
     if (!formClient) return;
     if (!/^\d{1,2}:\d{2}$/.test(formTime)) {
-      Alert.alert('Invalid time', 'Enter time as HH:MM (e.g. 09:30)');
+      Alert.alert(t('schedule.invalidTime'), t('schedule.invalidTimeMsg'));
       return;
     }
     const duration = formCustomDuration ? parseInt(formCustomDuration, 10) : formDuration;
     if (!duration || isNaN(duration) || duration < 1) {
-      Alert.alert('Invalid duration', 'Enter a valid duration in minutes.');
+      Alert.alert(t('schedule.invalidDuration'), t('schedule.invalidDurationMsg'));
       return;
     }
     setSaving(true);
@@ -144,7 +147,7 @@ export default function ScheduleScreen({ navigation }) {
         date: dateISO,
         time: formTime,
         duration,
-        location: formLocation.trim() || 'Not specified',
+        location: formLocation.trim() || t('schedule.notSpecified'),
         sessionType: formType,
         status: 'pending_confirmation',
         clientConfirmed: false,
@@ -155,7 +158,7 @@ export default function ScheduleScreen({ navigation }) {
 
       // Notify client via their conversation
       const convId = formClient.uid;
-      const msgText = `📅 A training session has been scheduled for you on ${dateISO} at ${formTime}. Open the Schedule tab to confirm your attendance.`;
+      const msgText = t('schedule.sessionInviteMsg', { date: dateISO, time: formTime });
       await addDoc(collection(db, 'conversations', convId, 'messages'), {
         text: msgText,
         senderId: 'coach',
@@ -175,21 +178,21 @@ export default function ScheduleScreen({ navigation }) {
       setShowAdd(false);
       setSelectedDate(dateISO);
     } catch (e) {
-      Alert.alert('Error', 'Could not save the session. Please try again.');
+      Alert.alert(t('schedule.invalidTime'), 'Could not save the session. Please try again.');
     } finally {
       setSaving(false);
     }
-  }, [formClient, formDate, formTime, formDuration, formCustomDuration, formLocation, formType]);
+  }, [formClient, formDate, formTime, formDuration, formCustomDuration, formLocation, formType, t]);
 
   // ── Cancel booking ────────────────────────────────────────────────────────
   const cancelBooking = useCallback((booking) => {
     Alert.alert(
-      'Cancel Session',
-      `Cancel ${booking.clientName}'s session on ${booking.date}?`,
+      t('schedule.cancelConfirmTitle'),
+      t('schedule.cancelConfirmMsg', { name: booking.clientName, date: booking.date }),
       [
-        { text: 'No', style: 'cancel' },
+        { text: t('common.no'), style: 'cancel' },
         {
-          text: 'Yes, Cancel', style: 'destructive',
+          text: t('common.yes'), style: 'destructive',
           onPress: async () => {
             try {
               await updateDoc(doc(db, 'bookings', booking.id), {
@@ -198,22 +201,22 @@ export default function ScheduleScreen({ navigation }) {
               });
               setDetailBooking(null);
             } catch {
-              Alert.alert('Error', 'Could not cancel the session.');
+              Alert.alert(t('common.error'), 'Could not cancel the session.');
             }
           },
         },
       ],
     );
-  }, []);
+  }, [t]);
 
   const markAsPaid = useCallback(async (booking) => {
     try {
       await updateDoc(doc(db, 'bookings', booking.id), { paymentStatus: 'paid' });
       setDetailBooking((prev) => prev?.id === booking.id ? { ...prev, paymentStatus: 'paid' } : prev);
     } catch {
-      Alert.alert('Error', 'Could not update payment status.');
+      Alert.alert(t('common.error'), 'Could not update payment status.');
     }
-  }, []);
+  }, [t]);
 
   const goToClientProgress = useCallback((booking) => {
     setDetailBooking(null);
@@ -231,17 +234,17 @@ export default function ScheduleScreen({ navigation }) {
       <LinearGradient colors={gradients.hero} style={s.header}>
         <View style={s.headerRow}>
           <View>
-            <Text style={s.headerTitle}>Schedule</Text>
+            <Text style={s.headerTitle}>{t('schedule.title')}</Text>
             <Text style={s.headerSub}>
-              {totalActive} sessions
-              {pendingCount > 0 ? `  ·  ${pendingCount} awaiting confirmation` : ''}
-              {unpaidCount > 0 ? `  ·  ${unpaidCount} unpaid` : ''}
+              {t('schedule.sessions', { count: totalActive })}
+              {pendingCount > 0 ? `  ·  ${t('schedule.awaitingConf', { count: pendingCount })}` : ''}
+              {unpaidCount > 0 ? `  ·  ${t('schedule.unpaid', { count: unpaidCount })}` : ''}
             </Text>
           </View>
           <TouchableOpacity style={s.addBtn} onPress={openAdd} activeOpacity={0.85}>
             <LinearGradient colors={gradients.primary} style={s.addBtnGrad}>
               <Ionicons name="add" size={18} color="#fff" />
-              <Text style={s.addBtnText}>Add Session</Text>
+              <Text style={s.addBtnText}>{t('schedule.addSession')}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -255,7 +258,7 @@ export default function ScheduleScreen({ navigation }) {
               onPress={() => setViewMode(m)}
             >
               <Text style={[s.modeBtnText, viewMode === m && s.modeBtnTextActive]}>
-                {m === 'month' ? 'Month' : 'Week'}
+                {m === 'month' ? t('schedule.month') : t('schedule.week')}
               </Text>
             </TouchableOpacity>
           ))}
@@ -306,9 +309,9 @@ export default function ScheduleScreen({ navigation }) {
         {/* Selected day sessions */}
         <View style={s.dayHeader}>
           <Text style={s.dayHeaderDate}>
-            {selectedDate === toISO(new Date()) ? 'Today' : selectedDate}
+            {selectedDate === toISO(new Date()) ? t('schedule.today') : selectedDate}
           </Text>
-          <Text style={s.dayHeaderCount}>{dayBookings.length} sessions</Text>
+          <Text style={s.dayHeaderCount}>{t('schedule.sessions', { count: dayBookings.length })}</Text>
         </View>
 
         {loading ? (
@@ -316,15 +319,15 @@ export default function ScheduleScreen({ navigation }) {
         ) : dayBookings.length === 0 ? (
           <View style={s.emptyDay}>
             <Ionicons name="calendar-outline" size={40} color={colors.textMuted} />
-            <Text style={s.emptyDayTitle}>No sessions this day</Text>
+            <Text style={s.emptyDayTitle}>{t('schedule.noSessions')}</Text>
             <TouchableOpacity onPress={openAdd} activeOpacity={0.8}>
-              <Text style={s.emptyDayAdd}>+ Add Session</Text>
+              <Text style={s.emptyDayAdd}>{t('schedule.addSessionHint')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={s.sessionsList}>
             {dayBookings.map((b) => (
-              <SessionCard key={b.id} booking={b} onPress={() => setDetailBooking(b)} />
+              <SessionCard key={b.id} booking={b} onPress={() => setDetailBooking(b)} statusConfig={STATUS_CONFIG} t={t} />
             ))}
           </View>
         )}
@@ -349,7 +352,7 @@ export default function ScheduleScreen({ navigation }) {
                 <View style={s.typeBadgeRow}>
                   <View style={[s.typeBadge, detailBooking.sessionType === 'group' && s.typeBadgeGroup]}>
                     <Text style={s.typeBadgeText}>
-                      {detailBooking.sessionType === 'group' ? 'Group Session' : 'Private Session'}
+                      {detailBooking.sessionType === 'group' ? t('schedule.groupSession') : t('schedule.privateSession')}
                     </Text>
                   </View>
                   <View style={[s.statusBadge, { borderColor: STATUS_CONFIG[detailBooking.status]?.color, backgroundColor: STATUS_CONFIG[detailBooking.status]?.color + '22' }]}>
@@ -362,7 +365,7 @@ export default function ScheduleScreen({ navigation }) {
                 <View style={s.metaList}>
                   <MetaRow icon="calendar-outline" text={detailBooking.date} />
                   <MetaRow icon="time-outline" text={`${detailBooking.time}  ·  ${detailBooking.duration} min`} />
-                  <MetaRow icon="location-outline" text={detailBooking.location || 'Not specified'} />
+                  <MetaRow icon="location-outline" text={detailBooking.location || t('schedule.notSpecified')} />
                   <MetaRow
                     icon="card-outline"
                     text={PAYMENT_CONFIG[detailBooking.paymentStatus ?? 'unpaid']?.label}
@@ -374,27 +377,27 @@ export default function ScheduleScreen({ navigation }) {
                   {detailBooking.paymentStatus !== 'paid' && detailBooking.status === 'confirmed' && (
                     <ActionButton
                       icon="checkmark-circle-outline"
-                      label="Mark as Paid"
+                      label={t('schedule.markAsPaid')}
                       color="#10B981"
                       onPress={() => markAsPaid(detailBooking)}
                     />
                   )}
                   <ActionButton
                     icon="bar-chart-outline"
-                    label="Last Session Summary"
+                    label={t('schedule.lastSummary')}
                     color={colors.accent}
                     onPress={() => goToClientProgress(detailBooking)}
                   />
                   <ActionButton
                     icon="close-circle-outline"
-                    label="Cancel Session"
+                    label={t('schedule.cancelSession')}
                     color={colors.error}
                     onPress={() => cancelBooking(detailBooking)}
                   />
                 </View>
 
                 <TouchableOpacity style={s.closeBtn} onPress={() => setDetailBooking(null)}>
-                  <Text style={s.closeBtnText}>Close</Text>
+                  <Text style={s.closeBtnText}>{t('schedule.close')}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -418,7 +421,7 @@ export default function ScheduleScreen({ navigation }) {
 
             {addStep === 'client' ? (
               <>
-                <Text style={s.modalTitle}>Select Client</Text>
+                <Text style={s.modalTitle}>{t('schedule.selectClient')}</Text>
 
                 <View style={s.searchBar}>
                   <Ionicons name="search-outline" size={16} color={colors.textMuted} />
@@ -426,7 +429,7 @@ export default function ScheduleScreen({ navigation }) {
                     style={s.searchInput}
                     value={clientSearch}
                     onChangeText={setClientSearch}
-                    placeholder="Search by name..."
+                    placeholder={t('schedule.searchClient')}
                     placeholderTextColor={colors.textMuted}
                     autoFocus
                   />
@@ -439,7 +442,7 @@ export default function ScheduleScreen({ navigation }) {
 
                 <ScrollView style={s.clientList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   {filteredClients.length === 0 ? (
-                    <Text style={s.noResults}>No clients found</Text>
+                    <Text style={s.noResults}>{t('schedule.noClients')}</Text>
                   ) : filteredClients.map((c) => {
                     const isSelected = formClient?.uid === c.uid;
                     return (
@@ -468,11 +471,11 @@ export default function ScheduleScreen({ navigation }) {
                   disabled={!formClient}
                 >
                   <LinearGradient colors={gradients.primary} style={s.primaryBtnGrad}>
-                    <Text style={s.primaryBtnText}>Next  →</Text>
+                    <Text style={s.primaryBtnText}>{t('schedule.next')}</Text>
                   </LinearGradient>
                 </TouchableOpacity>
                 <TouchableOpacity style={s.ghostBtn} onPress={() => setShowAdd(false)}>
-                  <Text style={s.ghostBtnText}>Cancel</Text>
+                  <Text style={s.ghostBtnText}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -482,7 +485,7 @@ export default function ScheduleScreen({ navigation }) {
                   <TouchableOpacity onPress={() => setAddStep('client')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                     <Ionicons name="arrow-back" size={20} color={colors.accent} />
                   </TouchableOpacity>
-                  <Text style={s.modalTitle}>Session Details</Text>
+                  <Text style={s.modalTitle}>{t('schedule.sessionDetails')}</Text>
                 </View>
 
                 <View style={s.selectedClient}>
@@ -491,7 +494,7 @@ export default function ScheduleScreen({ navigation }) {
                 </View>
 
                 {/* Date */}
-                <Field label="Date">
+                <Field label={t('schedule.date')}>
                   <View style={s.datePicker}>
                     <TouchableOpacity style={s.dateArrow} onPress={() => setFormDate((d) => addDays(d, -1))}>
                       <Ionicons name="chevron-back" size={20} color={colors.accent} />
@@ -504,12 +507,12 @@ export default function ScheduleScreen({ navigation }) {
                 </Field>
 
                 {/* Time */}
-                <Field label="Start Time (HH:MM)">
+                <Field label={t('schedule.startTime')}>
                   <TextInput
                     style={s.textInput}
                     value={formTime}
                     onChangeText={setFormTime}
-                    placeholder="09:00"
+                    placeholder={t('schedule.timePlaceholder')}
                     placeholderTextColor={colors.textMuted}
                     keyboardType="numbers-and-punctuation"
                     maxLength={5}
@@ -517,7 +520,7 @@ export default function ScheduleScreen({ navigation }) {
                 </Field>
 
                 {/* Duration */}
-                <Field label="Duration (minutes)">
+                <Field label={t('schedule.duration')}>
                   <View style={s.chipRow}>
                     {DURATION_PRESETS.map((d) => {
                       const active = formDuration === d && !formCustomDuration;
@@ -543,20 +546,20 @@ export default function ScheduleScreen({ navigation }) {
                 </Field>
 
                 {/* Location */}
-                <Field label="Location">
+                <Field label={t('schedule.location')}>
                   <TextInput
                     style={s.textInput}
                     value={formLocation}
                     onChangeText={setFormLocation}
-                    placeholder="e.g. KJ Studio, Tel Aviv"
+                    placeholder={t('schedule.locationPlaceholder')}
                     placeholderTextColor={colors.textMuted}
                   />
                 </Field>
 
                 {/* Session type */}
-                <Field label="Session Type">
+                <Field label={t('schedule.sessionType')}>
                   <View style={s.chipRow}>
-                    {[['private', 'Private'], ['group', 'Group']].map(([val, lbl]) => {
+                    {[['private', t('schedule.private')], ['group', t('schedule.group')]].map(([val, lbl]) => {
                       const active = formType === val;
                       return (
                         <TouchableOpacity
@@ -580,13 +583,13 @@ export default function ScheduleScreen({ navigation }) {
                   <LinearGradient colors={gradients.primary} style={s.primaryBtnGrad}>
                     {saving
                       ? <ActivityIndicator color="#fff" />
-                      : <Text style={s.primaryBtnText}>Save Session ✓</Text>
+                      : <Text style={s.primaryBtnText}>{t('schedule.saveSession')}</Text>
                     }
                   </LinearGradient>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={s.ghostBtn} onPress={() => setShowAdd(false)} disabled={saving}>
-                  <Text style={s.ghostBtnText}>Cancel</Text>
+                  <Text style={s.ghostBtnText}>{t('common.cancel')}</Text>
                 </TouchableOpacity>
 
                 <View style={{ height: 32 }} />
@@ -601,8 +604,8 @@ export default function ScheduleScreen({ navigation }) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SessionCard({ booking, onPress }) {
-  const statusCfg = STATUS_CONFIG[booking.status] ?? { label: booking.status, color: colors.textMuted };
+function SessionCard({ booking, onPress, statusConfig, t }) {
+  const statusCfg = statusConfig[booking.status] ?? { label: booking.status, color: colors.textMuted };
   return (
     <TouchableOpacity style={s.sessionCard} onPress={onPress} activeOpacity={0.8}>
       <View style={[s.sessionAccent, { backgroundColor: statusCfg.color }]} />
@@ -611,12 +614,12 @@ function SessionCard({ booking, onPress }) {
           <Text style={s.sessionClient}>{booking.clientName}</Text>
           <View style={[s.sessionTypePill, booking.sessionType === 'group' && s.sessionTypePillGroup]}>
             <Text style={s.sessionTypePillText}>
-              {booking.sessionType === 'group' ? 'Group' : 'Private'}
+              {booking.sessionType === 'group' ? t('schedule.group') : t('schedule.private')}
             </Text>
           </View>
         </View>
         <Text style={s.sessionMeta}>{booking.time}  ·  {booking.duration} min</Text>
-        {booking.location && booking.location !== 'Not specified' && (
+        {booking.location && booking.location !== t('schedule.notSpecified') && (
           <Text style={s.sessionLocation} numberOfLines={1}>
             <Ionicons name="location-outline" size={11} color={colors.textMuted} />  {booking.location}
           </Text>
