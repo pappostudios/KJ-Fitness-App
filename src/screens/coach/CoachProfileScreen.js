@@ -30,7 +30,7 @@ function Avatar({ initials, size = 80 }) {
 
 export default function CoachProfileScreen({ navigation }) {
   const { user, profile, logOut } = useAuth();
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, language, setLanguage } = useLanguage();
 
   const [name, setName]   = useState('');
   const [phone, setPhone] = useState('');
@@ -154,6 +154,36 @@ export default function CoachProfileScreen({ navigation }) {
           {/* Divider */}
           <View style={styles.sectionDivider} />
 
+          {/* Language */}
+          <View style={styles.card}>
+            <View style={styles.langSection}>
+              <View style={styles.langHeader}>
+                <View style={styles.linkIconWrap}>
+                  <Ionicons name="language-outline" size={18} color={colors.accent} />
+                </View>
+                <Text style={styles.linkText}>{t('settings.language')}</Text>
+              </View>
+              <View style={styles.langRow}>
+                <TouchableOpacity
+                  style={[styles.langBtn, language === 'en' && styles.langBtnActive]}
+                  onPress={() => setLanguage('en')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.langBtnText, language === 'en' && styles.langBtnTextActive]}>English</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.langBtn, language === 'he' && styles.langBtnActive]}
+                  onPress={() => setLanguage('he')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.langBtnText, language === 'he' && styles.langBtnTextActive]}>עברית</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.sectionDivider} />
+
           {/* Quick links */}
           <View style={styles.card}>
             <TouchableOpacity
@@ -271,6 +301,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(229,57,53,0.10)', alignItems: 'center', justifyContent: 'center',
   },
   linkText: { flex: 1, fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },
+
+  langSection: { padding: 16, gap: 12 },
+  langHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  langRow: { flexDirection: 'row', gap: 10 },
+  langBtn: {
+    flex: 1, paddingVertical: 10, borderRadius: 12,
+    backgroundColor: dark.bg2, borderWidth: 1, borderColor: dark.line,
+    alignItems: 'center',
+  },
+  langBtnActive: { backgroundColor: 'rgba(229,57,53,0.15)', borderColor: colors.accent },
+  langBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textMuted },
+  langBtnTextActive: { color: colors.accent },
 
   signOutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
