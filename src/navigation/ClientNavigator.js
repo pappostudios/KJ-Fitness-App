@@ -6,7 +6,7 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 
 import ClientHomeNavigator from './ClientHomeNavigator';
-import BookScreen from '../screens/client/BookScreen';
+import ClientScheduleScreen from '../screens/client/ClientScheduleScreen';
 import ProgressScreen from '../screens/client/ProgressScreen';
 import LibraryScreen from '../screens/client/LibraryScreen';
 import MessagesScreen from '../screens/client/MessagesScreen';
@@ -22,11 +22,11 @@ const TABS = [
     label: 'HOME',
   },
   {
-    name: 'Book',
-    component: BookScreen,
-    icon: 'videocam',
-    iconOutline: 'videocam-outline',
-    label: 'VIDEO',
+    name: 'Schedule',
+    component: ClientScheduleScreen,
+    icon: 'calendar',
+    iconOutline: 'calendar-outline',
+    label: 'SCHEDULE',
   },
   {
     name: 'Progress',

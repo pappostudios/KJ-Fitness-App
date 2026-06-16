@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import ClientRequestsScreen from '../screens/coach/ClientRequestsScreen';
-import ScheduleScreen from '../screens/coach/ScheduleScreen';
+import CoachScheduleNavigator from './CoachScheduleNavigator';
 import CoachMessagesNavigator from './CoachMessagesNavigator';
 import CoachClientsNavigator from './CoachClientsNavigator';
 import CoachHomeNavigator from './CoachHomeNavigator';
@@ -72,7 +72,7 @@ export default function CoachNavigator() {
     >
       <Tab.Screen name="Home"     component={CoachHomeNavigator} />
       <Tab.Screen name="Clients"  component={CoachClientsNavigator} />
-      <Tab.Screen name="Schedule" component={ScheduleScreen} />
+      <Tab.Screen name="Schedule" component={CoachScheduleNavigator} />
       <Tab.Screen name="Messages" component={CoachMessagesNavigator} />
       <Tab.Screen name="Requests" component={ClientRequestsScreen} />
     </Tab.Navigator>
