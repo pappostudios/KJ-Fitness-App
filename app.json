@@ -57,9 +57,7 @@
     "updates": {
       "url": "https://u.expo.dev/53c02adf-30fb-45b4-970d-ef07931554ae"
     },
-    "runtimeVersion": {
-      "policy": "sdkVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "extra": {
       "eas": {
         "projectId": "53c02adf-30fb-45b4-970d-ef07931554ae"
