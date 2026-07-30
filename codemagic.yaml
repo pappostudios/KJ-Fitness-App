@@ -1,0 +1,73 @@
+# Codemagic CI/CD — KJ Fitness iOS (App Store / TestFlight)
+#
+# This project is an Expo "CNG" app: there is NO committed ios/ directory.
+# Codemagic regenerates it with `expo prebuild` at build time from app.json,
+# then builds & signs the .ipa and uploads it to TestFlight.
+#
+# ── One-time setup in the Codemagic UI (Teams ▸ Integrations / App settings) ──
+#   1. App Store Connect API key  → add it under "App Store Connect" integrations
+#      and name it exactly:  KJ Fitness ASC   (matches `integrations` below).
+#   2. Create the app on App Store Connect with bundle id
+#      com.pappostudios.kjfitness  (Codemagic auto-manages the signing cert +
+#      provisioning profile from the API key via `ios_signing` below).
+#   3. (Optional) To let Codemagic pull OTA-friendly builds, add an EXPO_TOKEN
+#      environment variable in a group named `expo`.
+#
+# ── Before Google Sign-In works on iOS ───────────────────────────────────────
+#   Verify an *iOS* OAuth client exists in Google Cloud Console for bundle id
+#   com.pappostudios.kjfitness, and that app.json's
+#   `@react-native-google-signin/google-signin` → iosUrlScheme is that client's
+#   REVERSED client id. Email/password sign-in works regardless.
+
+workflows:
+  ios-appstore:
+    name: KJ Fitness iOS (App Store)
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: KJ Fitness ASC
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.pappostudios.kjfitness
+      vars:
+        BUNDLE_ID: "com.pappostudios.kjfitness"
+        XCODE_WORKSPACE: "ios"
+      node: 20
+      xcode: latest
+      cocoapods: default
+    cache:
+      cache_paths:
+        - ~/.npm
+        - $CM_BUILD_DIR/node_modules
+    scripts:
+      - name: Install JS dependencies
+        script: npm ci
+      - name: Expo prebuild (generate native ios/ project)
+        script: npx expo prebuild --platform ios --clean --non-interactive
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios && pod install
+      - name: Set up code signing
+        script: xcode-project use-profiles
+      - name: Set build number from Codemagic
+        script: |
+          cd ios
+          # TestFlight requires a strictly increasing build number.
+          agvtool new-version -all "$BUILD_NUMBER"
+      - name: Build signed .ipa
+        script: |
+          set -euo pipefail
+          WORKSPACE=$(find ios -maxdepth 1 -name "*.xcworkspace" | head -1)
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "Building workspace=$WORKSPACE scheme=$SCHEME"
+          xcode-project build-ipa --workspace "$WORKSPACE" --scheme "$SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # Flip to true + configure release once the listing is ready:
+        submit_to_app_store: false

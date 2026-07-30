@@ -14,7 +14,7 @@ import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { sendPushNotification } from '../../utils/sendPushNotification';
-import { colors, gradients, dark } from '../../theme/colors';
+import { colors, gradients, dark, elevation } from '../../theme/colors';
 import { MonthCalendar, WeekStrip, toISO, addMonths, MONTH_NAMES } from '../../components/CalendarView';
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -629,6 +629,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'stretch',
     backgroundColor: dark.bg1, borderRadius: 14,
     borderWidth: 1, borderColor: dark.line, overflow: 'hidden',
+    ...elevation.e1,
   },
   sessionCardPending: { borderColor: '#F59E0B' + '55' },
   sessionAccent: { width: 4, alignSelf: 'stretch' },
@@ -664,9 +665,10 @@ const s = StyleSheet.create({
   bookEmptyText: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textMuted },
   slotCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: dark.bg2, borderRadius: 14,
+    backgroundColor: dark.bg1, borderRadius: 14,
     borderWidth: 1, borderColor: dark.line,
     padding: 14, marginBottom: 10,
+    ...elevation.e1,
   },
   slotCardIcon: {
     width: 40, height: 40, borderRadius: 11,

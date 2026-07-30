@@ -1,9 +1,28 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+
+// Active-tab pill that springs in/out as focus changes.
+function TabPillIcon({ focused, color, tab }) {
+  const p = useSharedValue(focused ? 1 : 0);
+  useEffect(() => {
+    p.value = withSpring(focused ? 1 : 0, { damping: 16, stiffness: 220, mass: 0.6 });
+  }, [focused]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pillStyle = useAnimatedStyle(() => ({
+    opacity: p.value,
+    transform: [{ scale: 0.6 + 0.4 * p.value }],
+  }));
+  return (
+    <View style={styles.iconPill}>
+      <Animated.View style={[StyleSheet.absoluteFill, styles.iconPillFill, pillStyle]} />
+      <Ionicons name={focused ? tab.icon : tab.iconOutline} size={26} color={color} />
+    </View>
+  );
+}
 
 import ClientHomeNavigator from './ClientHomeNavigator';
 import ClientScheduleScreen from '../screens/client/ClientScheduleScreen';
@@ -68,13 +87,7 @@ export default function ClientNavigator() {
           tabBarInactiveTintColor: colors.tabInactive,
           tabBarShowLabel: true,
           tabBarIcon: ({ focused, color }) => (
-            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
-              <Ionicons
-                name={focused ? tab.icon : tab.iconOutline}
-                size={26}
-                color={color}
-              />
-            </View>
+            <TabPillIcon focused={focused} color={color} tab={tab} />
           ),
           tabBarLabel: ({ focused, color }) => (
             <Text style={[styles.tabLabel, focused && styles.tabLabelActive, { color }]}>
@@ -115,9 +128,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  iconPillActive: {
+  iconPillFill: {
     backgroundColor: colors.primarySoft,
+    borderRadius: 16,
   },
   tabLabel: {
     fontFamily: 'Sora-Bold',

@@ -95,27 +95,23 @@ export default function LoginScreen({ navigation }) {
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero block */}
+        {/* Hero block — soft teal wash fading to the screen colour */}
         <View style={styles.hero}>
           <LinearGradient
-            colors={['rgba(21, 194, 203,0.18)', 'transparent']}
+            colors={['#DCF3F5', '#EAF8F9', dark.bg0]}
+            locations={[0, 0.55, 1]}
             style={StyleSheet.absoluteFillObject}
-          />
-          <LinearGradient
-            colors={['transparent', 'rgba(28,20,18,0.8)', dark.bg0]}
-            style={StyleSheet.absoluteFillObject}
-            locations={[0.3, 0.7, 1]}
           />
           {/* Logo top-left */}
           <View style={styles.heroLogo}>
             <LinearGradient colors={gradients.primary} style={styles.logoBadge}>
-              <Ionicons name="flash" size={18} color={colors.accentInk} />
+              <Text style={styles.logoMonogram} allowFontScaling={false}>KJ</Text>
             </LinearGradient>
             <Text style={styles.logoWordmark}>KJ FITNESS</Text>
           </View>
@@ -277,8 +273,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   logoBadge: {
-    width: 32, height: 32, borderRadius: 9,
+    width: 34, height: 34, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
+    shadowColor: colors.accent, shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35, shadowRadius: 8, elevation: 5,
+  },
+  logoMonogram: {
+    fontFamily: 'Sora-ExtraBold', fontSize: 15, letterSpacing: 0.5,
+    color: colors.accentInk,
   },
   logoWordmark: {
     fontFamily: 'Sora-ExtraBold',

@@ -23,8 +23,22 @@ service cloud.firestore {
       return isAuth() && request.auth.uid == uid;
     }
 
+    // Caller is the coach, OR a client whose own profile has been APPROVED by
+    // the coach. This is the real access gate: a signed-up-but-unapproved
+    // (status: 'pending' / 'rejected') account can authenticate, but it must
+    // NOT be able to read shared content or write app data until Kirsten
+    // approves it. Coaches short-circuit before the profile read.
+    function isApproved() {
+      return isCoach() || (
+        isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved'
+      );
+    }
+
     // ── Users ────────────────────────────────────────────────────────────────
-    // Clients can read/write their own profile; coach can read all profiles.
+    // A user can always read/create/update their OWN profile — this is what
+    // lets a pending account exist, show "waiting for approval", and flip to
+    // approved when the coach updates it. Coach can read/update/delete anyone.
     match /users/{uid} {
       allow read:   if isOwner(uid) || isCoach();
       allow create: if isOwner(uid);
@@ -33,7 +47,8 @@ service cloud.firestore {
     }
 
     // ── Pending join requests ────────────────────────────────────────────────
-    // Coach reads and deletes; client creates their own request.
+    // Coach reads and deletes; a new client creates their own request. This
+    // must stay open to any owner so the approval queue can be populated.
     match /pendingRequests/{uid} {
       allow read:   if isCoach();
       allow create: if isOwner(uid);
@@ -41,101 +56,101 @@ service cloud.firestore {
     }
 
     // ── Time slots ───────────────────────────────────────────────────────────
-    // Coach creates/deletes slots; any authenticated user can read.
-    // Clients update a slot inside a transaction when booking (sets isBooked).
+    // Coach creates/deletes slots; approved clients can read and book (update
+    // inside a transaction). Unapproved accounts get nothing.
     match /slots/{slotId} {
-      allow read:   if isAuth();
+      allow read:   if isApproved();
       allow create: if isCoach();
-      allow update: if isAuth();  // transaction-based booking by clients
+      allow update: if isApproved();  // transaction-based booking by clients
       allow delete: if isCoach();
     }
 
     // ── Bookings ─────────────────────────────────────────────────────────────
     // Coach can read/update all bookings (e.g. mark as paid).
-    // Clients can read and create their own; can also update paymentStatus.
+    // Approved clients can read and create their own; can also update it.
     match /bookings/{bookingId} {
       allow read:   if isCoach() ||
-                       (isAuth() && resource.data.clientId == request.auth.uid);
-      allow create: if isAuth();
+                       (isApproved() && resource.data.clientId == request.auth.uid);
+      allow create: if isApproved();
       allow update: if isCoach() ||
-                       (isAuth() && resource.data.clientId == request.auth.uid);
+                       (isApproved() && resource.data.clientId == request.auth.uid);
       allow delete: if isCoach();
     }
 
     // ── Conversations ─────────────────────────────────────────────────────────
-    // Coach can read/list all; clients can read/update their own conversation.
+    // Coach can read/list all; approved clients can read/update their own.
     match /conversations/{convId} {
       // Coach can list the entire collection (no resource.data needed for list)
       allow list:   if isCoach();
       // convId is always the client's uid
-      allow get:    if isCoach() || (isAuth() && convId == request.auth.uid);
-      allow create: if isAuth();
+      allow get:    if isCoach() || (isApproved() && convId == request.auth.uid);
+      allow create: if isApproved();
       allow update: if isCoach() ||
-                       (isAuth() && resource.data.clientId == request.auth.uid);
+                       (isApproved() && resource.data.clientId == request.auth.uid);
       allow delete: if isCoach();
 
       // Messages subcollection
       // convId is always the client's uid, so no extra document read needed
       match /messages/{msgId} {
-        allow read:   if isCoach() || (isAuth() && convId == request.auth.uid);
-        allow create: if isAuth();
+        allow read:   if isCoach() || (isApproved() && convId == request.auth.uid);
+        allow create: if isApproved();
         allow delete: if isCoach();
       }
     }
 
     // ── Library (workout content, videos, articles) ──────────────────────────
-    // Coach can read/write all; clients can only read published items.
+    // Coach can read/write all; approved clients can only read published items.
     match /library/{itemId} {
       allow read:   if isCoach() ||
-                       (isAuth() && resource.data.isPublished == true);
+                       (isApproved() && resource.data.isPublished == true);
       allow create: if isCoach();
       allow update: if isCoach();
       allow delete: if isCoach();
     }
 
     // ── Progress (client workout/measurement logs) ────────────────────────────
-    // Coach can read all; clients can read/write their own entries.
+    // Coach can read all; approved clients can read/write their own entries.
     match /progress/{entryId} {
       allow read:   if isCoach() ||
-                       (isAuth() && resource.data.clientId == request.auth.uid);
-      allow create: if isAuth();
+                       (isApproved() && resource.data.clientId == request.auth.uid);
+      allow create: if isApproved();
       allow update: if isCoach() ||
-                       (isAuth() && resource.data.clientId == request.auth.uid);
+                       (isApproved() && resource.data.clientId == request.auth.uid);
       allow delete: if isCoach() ||
-                       (isAuth() && resource.data.clientId == request.auth.uid);
+                       (isApproved() && resource.data.clientId == request.auth.uid);
     }
 
     // ── Body Assessments ─────────────────────────────────────────────────────
-    // Coach creates/updates; client can read their own assessments.
+    // Coach creates/updates; approved client can read their own assessments.
     match /assessments/{asmtId} {
-      allow read:   if isCoach() || (isAuth() && resource.data.clientId == request.auth.uid);
+      allow read:   if isCoach() || (isApproved() && resource.data.clientId == request.auth.uid);
       allow create: if isCoach();
       allow update: if isCoach();
       allow delete: if isCoach();
     }
 
     // ── Training Programs (structured, versioned per-client workout plans) ──
-    // Coach creates/updates/deletes; client can only read their own program(s).
+    // Coach creates/updates/deletes; approved client can only read their own.
     match /trainingPrograms/{programId} {
-      allow read:   if isCoach() || (isAuth() && resource.data.clientId == request.auth.uid);
+      allow read:   if isCoach() || (isApproved() && resource.data.clientId == request.auth.uid);
       allow create: if isCoach();
       allow update: if isCoach();
       allow delete: if isCoach();
     }
 
-    // ── Settings (coach-global config: Bit link, session price) ─────────────
-    // All authenticated users can read (needed for the SessionCard & BookScreen).
+    // ── Settings (coach-global config: Bit link, session price, terms) ──────
+    // Approved users can read (needed for the SessionCard & terms gate).
     // Only the coach can write.
     match /settings/{docId} {
-      allow read:  if isAuth();
+      allow read:  if isApproved();
       allow write: if isCoach();
     }
 
     // ── Weekly Plans ─────────────────────────────────────────────────────────
-    // All authenticated users can read published plans.
+    // Approved users can read published plans.
     // Only the coach can create/update/delete.
     match /weeklyPlans/{planId} {
-      allow read:   if isAuth();
+      allow read:   if isApproved();
       allow create: if isCoach();
       allow update: if isCoach();
       allow delete: if isCoach();

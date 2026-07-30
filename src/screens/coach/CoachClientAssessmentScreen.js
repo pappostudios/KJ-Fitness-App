@@ -13,7 +13,7 @@ import {
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { colors, gradients, dark } from '../../theme/colors';
+import { colors, gradients, dark, elevation } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 // ── Jackson-Pollock 7-site body fat formula ───────────────────────────────────
@@ -193,7 +193,7 @@ export default function CoachClientAssessmentScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -703,7 +703,8 @@ const styles = StyleSheet.create({
   // Assessment card
   card: {
     backgroundColor: dark.bg1, borderRadius: 18,
-    borderWidth: 1, borderColor: dark.lineSoft, overflow: 'hidden',
+    borderWidth: 1, borderColor: dark.line, overflow: 'hidden',
+    ...elevation.e1,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
   numBadge: {
@@ -764,7 +765,8 @@ const styles = StyleSheet.create({
   },
   formCard: {
     backgroundColor: dark.bg1, borderRadius: 16,
-    borderWidth: 1, borderColor: dark.lineSoft, overflow: 'hidden',
+    borderWidth: 1, borderColor: dark.line, overflow: 'hidden',
+    ...elevation.e1,
   },
   formRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

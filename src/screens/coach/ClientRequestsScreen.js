@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, StatusBar,
+  ActivityIndicator, Alert, StatusBar, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +11,7 @@ import {
   serverTimestamp, query, orderBy,
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { colors, gradients, dark } from '../../theme/colors';
+import { colors, gradients, dark, elevation } from '../../theme/colors';
 import { useLanguage } from '../../context/LanguageContext';
 
 function Eyebrow({ children, style }) {
@@ -87,7 +87,7 @@ export default function ClientRequestsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -131,7 +131,19 @@ export default function ClientRequestsScreen() {
               {/* Info */}
               <View style={styles.info}>
                 <Text style={styles.name}>{item.name}</Text>
-                <Text style={styles.email} numberOfLines={1}>{item.email}</Text>
+                <TouchableOpacity onPress={() => item.email && Linking.openURL(`mailto:${item.email}`)} activeOpacity={0.6}>
+                  <Text style={styles.contactLink} numberOfLines={1}>{item.email}</Text>
+                </TouchableOpacity>
+                {item.phone ? (
+                  <TouchableOpacity
+                    style={styles.phoneRow}
+                    onPress={() => Linking.openURL(`tel:${String(item.phone).replace(/[^0-9+]/g, '')}`)}
+                    activeOpacity={0.6}
+                  >
+                    <Ionicons name="call-outline" size={12} color={colors.accent} />
+                    <Text style={styles.contactLink}>{item.phone}</Text>
+                  </TouchableOpacity>
+                ) : null}
                 <Text style={styles.time}>
                   {item.requestedAt?.toDate
                     ? formatDate(item.requestedAt.toDate(), t)
@@ -209,8 +221,9 @@ const styles = StyleSheet.create({
 
   requestCard: {
     backgroundColor: dark.bg1, borderRadius: 18,
-    borderWidth: 1, borderColor: dark.lineSoft,
+    borderWidth: 1, borderColor: dark.line,
     padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14,
+    ...elevation.e1,
   },
   avatar: {
     width: 46, height: 46, borderRadius: 23,
@@ -219,8 +232,9 @@ const styles = StyleSheet.create({
   avatarText: { fontFamily: 'Sora-Bold', fontSize: 18, color: colors.accent },
   info: { flex: 1, gap: 3 },
   name: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },
-  email: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textSecondary },
-  time: { fontFamily: 'Sora-Regular', fontSize: 11, color: colors.textMuted },
+  contactLink: { fontFamily: 'Sora-SemiBold', fontSize: 12, color: colors.accent },
+  phoneRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  time: { fontFamily: 'Sora-Regular', fontSize: 11, color: colors.textMuted, marginTop: 1 },
 
   actions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   approveBtn: {

@@ -29,7 +29,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { db, storage } from '../../config/firebase';
 import { useLanguage } from '../../context/LanguageContext';
-import { colors, gradients } from '../../theme/colors';
+import { colors, gradients, elevation } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 const TYPE_COLOR = { video: '#E91E63', article: '#FF9800', image: '#9C27B0' };
@@ -529,6 +529,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
     padding: 12,
+    ...elevation.e1,
     gap: 12,
   },
   itemIconWrap: {

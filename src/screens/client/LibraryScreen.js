@@ -23,7 +23,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
 import { useLanguage } from '../../context/LanguageContext';
-import { colors, gradients } from '../../theme/colors';
+import { colors, gradients, elevation } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 // ── YouTube helpers ────────────────────────────────────────────────────────────
@@ -424,6 +424,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
+    ...elevation.e1,
   },
   cardTypeBadge: {
     width: 64,

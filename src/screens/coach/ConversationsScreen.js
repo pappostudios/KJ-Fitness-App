@@ -87,7 +87,7 @@ export default function ConversationsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
 
       {/* Header */}
       <View style={styles.header}>

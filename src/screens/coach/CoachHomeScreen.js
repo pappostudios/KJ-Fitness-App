@@ -11,7 +11,7 @@ import {
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useCoachSettings } from '../../hooks/useCoachSettings';
-import { colors, gradients, dark } from '../../theme/colors';
+import { colors, gradients, dark, elevation } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -190,7 +190,7 @@ export default function CoachHomeScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -350,8 +350,9 @@ const styles = StyleSheet.create({
   statCard: {
     width: '47.5%',
     backgroundColor: dark.bg1, borderRadius: 18,
-    borderWidth: 1, borderColor: dark.lineSoft,
+    borderWidth: 1, borderColor: dark.line,
     padding: 18, gap: 8,
+    ...elevation.e1,
   },
   statCardAccent: {
     backgroundColor: 'rgba(21, 194, 203,0.08)',
@@ -367,7 +368,8 @@ const styles = StyleSheet.create({
   actionCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: dark.bg1, borderRadius: 18,
-    borderWidth: 1, borderColor: dark.lineSoft, padding: 18,
+    borderWidth: 1, borderColor: dark.line, padding: 18,
+    ...elevation.e1,
   },
   actionIconWrap: {
     width: 42, height: 42, borderRadius: 13,

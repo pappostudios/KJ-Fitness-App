@@ -9,10 +9,11 @@ import {
   collection, query, where, orderBy, onSnapshot, limit,
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { colors, gradients, dark } from '../../theme/colors';
+import { colors, gradients, dark, elevation } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { Enter, CountUp, Flame, PressScale } from '../../components/Motion';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toISO(date) {
@@ -132,7 +133,7 @@ export default function ProgressScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
@@ -146,61 +147,68 @@ export default function ProgressScreen({ navigation }) {
         </View>
 
         {/* Big numbers row */}
-        <View style={styles.kpiRow}>
-          {/* Streak — accent card */}
-          <View style={[styles.kpiCard, streak > 0 && styles.kpiCardAccent]}>
-            <Eyebrow accent={streak > 0}>{t('progress.streak')}</Eyebrow>
-            <View style={styles.kpiValueRow}>
-              <Text style={styles.kpiValueLarge}>{streak}</Text>
-              <Text style={styles.kpiUnit}>{t('progress.days')}</Text>
+        <Enter index={0} style={styles.kpiRow}>
+          {/* Streak — the hero tile: teal gradient when active */}
+          {streak > 0 ? (
+            <View style={styles.kpiCardGlow}>
+              <LinearGradient colors={gradients.primary} style={styles.kpiGradient}>
+                <Text style={styles.kpiEyebrowInk}>{t('progress.streak')}</Text>
+                <View style={styles.kpiValueRow}>
+                  <CountUp value={streak} style={styles.kpiValueLargeInk} allowFontScaling={false} />
+                  <Text style={styles.kpiUnitInk}>{t('progress.days')}</Text>
+                </View>
+                <View style={styles.kpiFlameRow}>
+                  <Flame color={colors.accentInk} size={13} />
+                  <Text style={styles.kpiNoteInk}>{t('progress.keepGoing')}</Text>
+                </View>
+              </LinearGradient>
             </View>
-            {streak > 0 ? (
-              <View style={styles.kpiFlameRow}>
-                <Ionicons name="flame" size={12} color={colors.accent} />
-                <Text style={styles.kpiNote}>{t('progress.keepGoing')}</Text>
+          ) : (
+            <View style={styles.kpiCard}>
+              <Eyebrow>{t('progress.streak')}</Eyebrow>
+              <View style={styles.kpiValueRow}>
+                <Text style={styles.kpiValueLarge}>0</Text>
+                <Text style={styles.kpiUnit}>{t('progress.days')}</Text>
               </View>
-            ) : (
               <Text style={styles.kpiNote}>{t('progress.startFirst')}</Text>
-            )}
-          </View>
+            </View>
+          )}
 
           {/* Sessions */}
           <View style={styles.kpiCard}>
             <Eyebrow>{t('progress.sessions')}</Eyebrow>
             <View style={styles.kpiValueRow}>
-              <Text style={styles.kpiValueMd}>{totalWorkouts}</Text>
+              <CountUp value={totalWorkouts} style={styles.kpiValueMd} allowFontScaling={false} />
               <Text style={styles.kpiUnit}>{t('progress.workoutsUnit')}</Text>
             </View>
             <Text style={[styles.kpiNote, { marginTop: 10 }]}>
               {t('progress.thisMonth', { count: workoutsThisMonth })}
             </Text>
           </View>
-        </View>
+        </Enter>
 
         {/* Log a Workout + View history */}
-        <View style={[styles.section, { paddingTop: 4 }]}>
-          <TouchableOpacity
+        <Enter index={1} style={[styles.section, { paddingTop: 4 }]}>
+          <PressScale
             style={styles.logWorkoutBtn}
             onPress={() => navigation.navigate('LogWorkout')}
-            activeOpacity={0.85}
           >
             <LinearGradient colors={gradients.primary} style={styles.logWorkoutBtnInner}>
-              <Ionicons name="add-circle-outline" size={18} color="#fff" />
+              <Ionicons name="add-circle-outline" size={18} color={colors.accentInk} />
               <Text style={styles.logWorkoutBtnText}>{t('progress.logWorkout')}</Text>
             </LinearGradient>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </PressScale>
+          <PressScale
             style={styles.viewAllBtn}
             onPress={() => navigation.navigate('ClientWorkoutHistory')}
-            activeOpacity={0.85}
           >
             <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
             <Text style={styles.viewAllBtnText}>{t('progress.viewAllWorkouts')}</Text>
-          </TouchableOpacity>
-        </View>
+          </PressScale>
+        </Enter>
 
         {/* PRs */}
-        <View style={styles.section}>
+        <Enter index={2} style={styles.section}>
           <View style={styles.sectionHeader}>
             <Eyebrow>{t('progress.personalRecords')}</Eyebrow>
             {PRS.length > 0 && <Text style={styles.sectionSub}>{t('progress.last10Weeks')}</Text>}
@@ -236,10 +244,10 @@ export default function ProgressScreen({ navigation }) {
               <Text style={styles.emptyBody}>{t('progress.PRsSub')}</Text>
             </View>
           )}
-        </View>
+        </Enter>
 
         {/* Body metrics — live from assessments collection */}
-        <View style={styles.section}>
+        <Enter index={3} style={styles.section}>
           <Eyebrow style={{ marginBottom: 12 }}>{t('progress.body')}</Eyebrow>
           {latestA ? (
             <View style={[styles.card, { padding: 16 }]}>
@@ -289,7 +297,7 @@ export default function ProgressScreen({ navigation }) {
               <Text style={styles.emptyBody}>{t('assessment.noBodyDataSub')}</Text>
             </View>
           )}
-        </View>
+        </Enter>
 
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -360,13 +368,32 @@ const styles = StyleSheet.create({
   kpiCard: {
     flex: 1,
     backgroundColor: dark.bg1,
-    borderRadius: 18, borderWidth: 1, borderColor: dark.lineSoft,
+    borderRadius: 18, borderWidth: 1, borderColor: dark.line,
     padding: 18,
+    ...elevation.e1,
   },
-  kpiCardAccent: {
-    borderColor: 'rgba(21, 194, 203,0.3)',
-    backgroundColor: 'rgba(21, 194, 203,0.08)',
+  // Streak hero tile (teal gradient) — the most motivating pixel.
+  // Outer wrapper carries the glow + a solid teal base so the tile can never
+  // paint white if the gradient is slow/failed to composite on Android.
+  kpiCardGlow: {
+    flex: 1, borderRadius: 18,
+    backgroundColor: colors.accentDark,
+    shadowColor: colors.accent, shadowOpacity: 0.32, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 8,
   },
+  kpiGradient: {
+    padding: 18, borderRadius: 18, overflow: 'hidden',
+    backgroundColor: colors.accentDark,
+  },
+  kpiEyebrowInk: {
+    fontFamily: 'Sora-SemiBold', fontSize: 10.5, letterSpacing: 1.89,
+    textTransform: 'uppercase', color: 'rgba(4,40,43,0.72)',
+  },
+  kpiValueLargeInk: {
+    fontFamily: 'JetBrainsMono-Medium', fontSize: 44, fontWeight: '700', lineHeight: 48,
+    color: colors.accentInk,
+  },
+  kpiUnitInk: { fontFamily: 'Sora-Regular', fontSize: 13, color: 'rgba(4,40,43,0.7)' },
+  kpiNoteInk: { fontFamily: 'Sora-SemiBold', fontSize: 12, color: colors.accentInk },
   kpiValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 10 },
   kpiValueLarge: {
     fontFamily: 'JetBrainsMono-Medium',
@@ -397,6 +424,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, paddingVertical: 12, marginTop: 8,
     borderRadius: 14, borderWidth: 1, borderColor: dark.line, backgroundColor: dark.bg1,
+    ...elevation.e1,
   },
   viewAllBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 13, color: colors.textSecondary },
 
@@ -410,14 +438,17 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: dark.bg1,
-    borderRadius: 18, borderWidth: 1, borderColor: dark.lineSoft,
+    borderRadius: 18, borderWidth: 1, borderColor: dark.line,
     overflow: 'hidden',
+    ...elevation.e1,
   },
 
   // Empty state
   emptyState: {
     padding: 32, alignItems: 'center', gap: 8,
-    borderWidth: 1, borderStyle: 'dashed', borderColor: dark.line, borderRadius: 16,
+    backgroundColor: dark.bg1,
+    borderWidth: 1, borderColor: dark.line, borderRadius: 16,
+    ...elevation.e1,
   },
   emptyTitle: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textSecondary },
   emptyBody: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, textAlign: 'center', lineHeight: 17 },

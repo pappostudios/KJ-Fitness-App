@@ -10,7 +10,7 @@ import {
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { colors, dark } from '../../theme/colors';
+import { colors, dark, elevation } from '../../theme/colors';
 import { ExerciseHistoryChart } from '../../components/ProgressCharts';
 
 const TYPE_EMOJI = {
@@ -52,7 +52,7 @@ export default function ClientWorkoutHistoryScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
           <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={22} color={colors.textPrimary} />
@@ -159,7 +159,8 @@ const s = StyleSheet.create({
   list: { padding: 16, gap: 10 },
   card: {
     backgroundColor: dark.bg1, borderRadius: 16,
-    borderWidth: 1, borderColor: dark.lineSoft, padding: 14,
+    borderWidth: 1, borderColor: dark.line, padding: 14,
+    ...elevation.e1,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center' },
   cardTitle: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },

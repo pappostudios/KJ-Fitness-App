@@ -150,7 +150,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" backgroundColor={colors.background} />
+      <StatusBar style="dark" backgroundColor={colors.background} />
       <LanguageProvider>
         <AuthProvider>
           <NavigationContainer ref={navigationRef} theme={KJTheme}>

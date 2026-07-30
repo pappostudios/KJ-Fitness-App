@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   collection, query, where, orderBy, limit, onSnapshot,
 } from 'firebase/firestore';
-import { colors, gradients, dark } from '../../theme/colors';
+import { colors, gradients, dark, elevation } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -167,7 +167,7 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -487,6 +487,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: `rgba(21, 194, 203,0.35)`,
     overflow: 'hidden',
+    ...elevation.e2,
   },
   heroCardCover: {
     height: 120,
@@ -525,8 +526,9 @@ const styles = StyleSheet.create({
   nextSessionCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: dark.bg1, borderRadius: 14,
-    borderWidth: 1, borderColor: dark.lineSoft,
+    borderWidth: 1, borderColor: dark.line,
     paddingHorizontal: 14, paddingVertical: 12,
+    ...elevation.e1,
   },
   nextSessionIcon: {
     width: 36, height: 36, borderRadius: 10,
@@ -543,8 +545,9 @@ const styles = StyleSheet.create({
     backgroundColor: dark.bg1,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: dark.lineSoft,
+    borderColor: dark.line,
     padding: 18,
+    ...elevation.e1,
   },
 
   // Coach note
@@ -596,10 +599,10 @@ const styles = StyleSheet.create({
   // Empty state card
   emptyCard: {
     backgroundColor: dark.bg1,
-    borderRadius: 18, borderWidth: 1, borderColor: dark.lineSoft,
-    borderStyle: 'dashed',
+    borderRadius: 18, borderWidth: 1, borderColor: dark.line,
     padding: 28,
     alignItems: 'center',
+    ...elevation.e1,
   },
   emptyCardTitle: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textSecondary, textAlign: 'center' },
   emptyCardSub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, textAlign: 'center', marginTop: 4, lineHeight: 17 },
@@ -609,8 +612,9 @@ const styles = StyleSheet.create({
   prCard: {
     flex: 1,
     backgroundColor: dark.bg1,
-    borderRadius: 16, borderWidth: 1, borderColor: dark.lineSoft,
+    borderRadius: 16, borderWidth: 1, borderColor: dark.line,
     padding: 14,
+    ...elevation.e1,
   },
   prLift: { fontFamily: 'Sora-Regular', fontSize: 11.5, color: colors.textMuted },
   prValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 4 },

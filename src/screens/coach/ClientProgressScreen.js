@@ -26,7 +26,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
 import { useLanguage } from '../../context/LanguageContext';
 import { WeeklyBarsChart, TypeBreakdownChart, ActivityGridChart, ExerciseHistoryChart } from '../../components/ProgressCharts';
-import { colors, gradients, dark } from '../../theme/colors';
+import { colors, gradients, dark, elevation } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 const WORKOUT_TYPES = {
@@ -625,6 +625,7 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     gap: 5,
+    ...elevation.e1,
   },
   statCardHighlight: { backgroundColor: colors.primaryGlow, borderColor: colors.primary },
   statIcon: { fontSize: 26 },
@@ -691,6 +692,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
     overflow: 'hidden',
+    ...elevation.e1,
   },
   entryLeft: {
     width: 56,
@@ -709,6 +711,7 @@ const styles = StyleSheet.create({
   bodyCard: {
     backgroundColor: colors.card, borderRadius: 16,
     borderWidth: 1, borderColor: colors.cardBorder, overflow: 'hidden', marginBottom: 12,
+    ...elevation.e1,
   },
   bodyCardHeader: { padding: 14, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
   bodyCardDate: { ...typography.bodySmall, color: colors.textSecondary },

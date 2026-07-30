@@ -15,7 +15,10 @@ import {
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
+import * as Notifications from 'expo-notifications';
 import { auth, db } from '../config/firebase';
+
+const EXPO_PROJECT_ID = '53c02adf-30fb-45b4-970d-ef07931554ae';
 
 // Emails that always get coach access — no approval needed
 const COACH_EMAILS = [
@@ -159,7 +162,7 @@ export function AuthProvider({ children }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Email/password sign up ──────────────────────────────────────────────
-  const signUp = async (email, password, name) => {
+  const signUp = async (email, password, name, phone = '') => {
     setError(null);
     skipAuthHandlerRef.current = true;
     setLoading(true);
@@ -169,9 +172,9 @@ export function AuthProvider({ children }) {
         email.trim().toLowerCase(),
         password
       );
-      await _createPendingProfile(credential.user.uid, email.trim().toLowerCase(), name);
+      await _createPendingProfile(credential.user.uid, email.trim().toLowerCase(), name, phone);
       setUser(credential.user);
-      setProfile({ uid: credential.user.uid, name, email: email.trim().toLowerCase(), role: 'client', status: 'pending' });
+      setProfile({ uid: credential.user.uid, name, email: email.trim().toLowerCase(), phone, role: 'client', status: 'pending' });
       setRole('client');
       setStatus('pending');
       _subscribeToProfile(credential.user.uid);
@@ -291,8 +294,54 @@ export function AuthProvider({ children }) {
   };
 
   // ── Sign out ────────────────────────────────────────────────────────────
+  // Before dropping auth, unregister THIS device's push token from the account
+  // that's logging out. Without this, a device that once logged in as coach
+  // stays the coach's notification target even after switching to a client
+  // account on the same phone — so messages route back to yourself. Clearing on
+  // logout is also correct in production: a signed-out device shouldn't receive
+  // that account's pushes.
+  const _clearPushTokenOnLogout = async () => {
+    const current = auth.currentUser;
+    if (!current) return;
+    let deviceToken = null;
+    try {
+      const td = await Notifications.getExpoPushTokenAsync({ projectId: EXPO_PROJECT_ID });
+      deviceToken = td?.data ?? null;
+    } catch {
+      // no token available (e.g. permissions/simulator) — still clear the user field below
+    }
+    try {
+      await setDoc(
+        doc(db, 'users', current.uid),
+        { pushToken: null, pushTokenUpdatedAt: serverTimestamp() },
+        { merge: true },
+      );
+    } catch { /* best-effort */ }
+
+    // Clear the shared coach token only if it belongs to THIS device, so we
+    // don't knock out the coach's other phone.
+    if (COACH_EMAILS.includes(current.email)) {
+      try {
+        const snap = await getDoc(doc(db, 'settings', 'coachToken'));
+        const stored = snap.data()?.pushToken ?? null;
+        if (!deviceToken || stored === deviceToken) {
+          await setDoc(
+            doc(db, 'settings', 'coachToken'),
+            { pushToken: null, updatedAt: serverTimestamp() },
+            { merge: true },
+          );
+        }
+      } catch { /* best-effort */ }
+    }
+  };
+
   const logOut = async () => {
     setError(null);
+    // Cap the token cleanup so a slow network can never block sign-out.
+    await Promise.race([
+      _clearPushTokenOnLogout(),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
     _signOutAndReset();
   };
 
@@ -337,11 +386,12 @@ export function useAuth() {
 }
 
 // ── Shared helper — writes pending profile + request doc ─────────────────
-async function _createPendingProfile(uid, email, name) {
+async function _createPendingProfile(uid, email, name, phone = '') {
   await setDoc(doc(db, 'users', uid), {
     uid,
     name,
     email,
+    phone: phone || null,
     role: 'client',
     status: 'pending',
     createdAt: serverTimestamp(),
@@ -350,6 +400,7 @@ async function _createPendingProfile(uid, email, name) {
     uid,
     name,
     email,
+    phone: phone || null,
     requestedAt: serverTimestamp(),
   });
 }

@@ -21,7 +21,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { colors, gradients } from '../../theme/colors';
+import { colors, gradients, elevation } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 const DAILY_PREF_KEY = 'kj_daily_reminder';
@@ -360,6 +360,7 @@ const styles = StyleSheet.create({
     borderColor: colors.cardBorder,
     padding: 16,
     gap: 12,
+    ...elevation.e1,
   },
   langCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -384,6 +385,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
     overflow: 'hidden',
+    ...elevation.e1,
   },
   field: {
     flexDirection: 'row',

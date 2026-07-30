@@ -13,7 +13,8 @@ import {
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { colors, gradients, dark } from '../../theme/colors';
+import { colors, gradients, dark, elevation } from '../../theme/colors';
+import WorkoutCelebration from '../../components/WorkoutCelebration';
 
 const FREEFORM_TYPES = [
   { key: 'strength',    emoji: '💪' },
@@ -27,6 +28,27 @@ const FREEFORM_TYPES = [
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function weekStartISO() {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay());
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Consecutive-day streak from a set of ISO dates (includes today after a log)
+function streakFromDates(dateSet) {
+  const dates = [...dateSet].sort().reverse();
+  let streak = 0;
+  let cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  for (const iso of dates) {
+    const d = new Date(iso + 'T00:00:00');
+    const diff = Math.round((cursor - d) / 86400000);
+    if (diff <= 1) { streak++; cursor = d; }
+    else break;
+  }
+  return streak;
 }
 
 export default function LogWorkoutScreen({ navigation }) {
@@ -43,6 +65,7 @@ export default function LogWorkoutScreen({ navigation }) {
   const [notes, setNotes] = useState('');
   const [freeformType, setFreeformType] = useState('strength');
   const [saving, setSaving] = useState(false);
+  const [celebration, setCelebration] = useState(null); // props for WorkoutCelebration, or null
 
   useEffect(() => {
     if (!user) return;
@@ -126,6 +149,75 @@ export default function LogWorkoutScreen({ navigation }) {
     });
   };
 
+  // Build the A+C celebration: milestone → takeover, else restrained.
+  const buildCelebration = (loggedExercises) => {
+    const isFirstLog = recentEntries.length === 0;
+
+    // New max: a logged top set strictly beats the previous best for that exercise
+    let newMax = null;
+    for (const ex of loggedExercises ?? []) {
+      const top = Math.max(0, ...ex.sets.map((s) => s.weight || 0));
+      if (top <= 0) continue;
+      let prevTop = 0;
+      for (const e of recentEntries) {
+        for (const pe of e.exercises ?? []) {
+          if (pe.name === ex.name) prevTop = Math.max(prevTop, ...(pe.sets ?? []).map((s) => s.weight || 0));
+        }
+      }
+      if (prevTop > 0 && top > prevTop && (!newMax || top > newMax.weight)) {
+        newMax = { name: ex.name, weight: top };
+      }
+    }
+
+    // Streak (including today's log)
+    const dates = new Set([todayISO(), ...recentEntries.map((e) => e.date)]);
+    const streak = streakFromDates(dates);
+    const streakMilestone = streak > 0 && streak % 7 === 0;
+
+    if (isFirstLog) {
+      return {
+        variant: 'takeover',
+        milestoneLabel: t('celebration.milestone'),
+        bigNumber: '1', bigLabel: t('celebration.firstBig'),
+        milestoneNote: t('celebration.firstNote'),
+        subtitle: t('celebration.firstChip'),
+        ctaLabel: t('celebration.keepRolling'),
+      };
+    }
+    if (newMax) {
+      return {
+        variant: 'takeover',
+        milestoneLabel: t('celebration.newMax'),
+        bigNumber: `${newMax.weight}`, bigLabel: t('celebration.kg'),
+        milestoneNote: t('celebration.newMaxNote', { name: newMax.name }),
+        subtitle: newMax.name,
+        ctaLabel: t('celebration.keepRolling'),
+      };
+    }
+    if (streakMilestone) {
+      return {
+        variant: 'takeover',
+        milestoneLabel: t('celebration.milestone'),
+        bigNumber: `${streak}`, bigLabel: t('celebration.dayStreak'),
+        milestoneNote: t('celebration.streakNote'),
+        subtitle: t('celebration.streakChip', { count: streak }),
+        ctaLabel: t('celebration.keepRolling'),
+      };
+    }
+
+    // Restrained — ring to weekly target
+    const wStart = weekStartISO();
+    const doneThisWeek = recentEntries.filter((e) => e.date >= wStart).length + 1; // +1 for this log
+    const target = activeProgram?.targetSessionsPerWeek ?? 0;
+    return {
+      variant: 'restrained',
+      title: t('celebration.logged'),
+      subtitle: target > 0 ? t('trainingProgram.sessionsThisWeek', { done: Math.min(doneThisWeek, target), target }) : undefined,
+      weekDone: Math.min(doneThisWeek, target || doneThisWeek),
+      weekTarget: target,
+    };
+  };
+
   const handleSaveStructured = async () => {
     setSaving(true);
     try {
@@ -156,7 +248,7 @@ export default function LogWorkoutScreen({ navigation }) {
         workoutName: selectedWorkout.name,
         exercises,
       });
-      navigation.goBack();
+      setCelebration(buildCelebration(exercises));
     } catch (e) {
       Alert.alert(t('trainingProgram.error'), e.message ?? t('trainingProgram.errorMsg'));
     } finally {
@@ -175,7 +267,7 @@ export default function LogWorkoutScreen({ navigation }) {
         duration: parseInt(duration, 10) || 0,
         notes: notes.trim(),
       });
-      navigation.goBack();
+      setCelebration(buildCelebration(null));
     } catch (e) {
       Alert.alert(t('trainingProgram.error'), e.message ?? t('trainingProgram.errorMsg'));
     } finally {
@@ -195,7 +287,7 @@ export default function LogWorkoutScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
           <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={22} color={colors.textPrimary} />
@@ -380,6 +472,14 @@ export default function LogWorkoutScreen({ navigation }) {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {celebration && (
+        <WorkoutCelebration
+          visible
+          {...celebration}
+          onDone={() => { setCelebration(null); navigation.goBack(); }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -420,14 +520,17 @@ const styles = StyleSheet.create({
 
   freeformChip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: dark.line,
+    borderRadius: 14, borderWidth: 1, borderColor: dark.line,
+    backgroundColor: dark.bg1,
     paddingVertical: 14, marginTop: 4,
+    ...elevation.e1,
   },
   freeformChipText: { fontFamily: 'Sora-SemiBold', fontSize: 13.5, color: colors.textPrimary },
 
   exerciseCard: {
     backgroundColor: dark.bg1, borderRadius: 16,
-    borderWidth: 1, borderColor: dark.lineSoft, padding: 14, gap: 8,
+    borderWidth: 1, borderColor: dark.line, padding: 14, gap: 8,
+    ...elevation.e1,
   },
   exerciseName: { fontFamily: 'Sora-Bold', fontSize: 15, color: colors.textPrimary },
   exerciseTarget: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted },
@@ -449,7 +552,8 @@ const styles = StyleSheet.create({
 
   addSetBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: dark.line,
+    borderRadius: 10, borderWidth: 1, borderColor: colors.accent + '40',
+    backgroundColor: colors.accent + '10',
     paddingVertical: 8, marginTop: 2,
   },
   addSetBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 12, color: colors.accent },

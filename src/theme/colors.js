@@ -1,184 +1,157 @@
 /**
- * KJ Fitness — Design System Colors
+ * KJ Fitness — Design System Colors (LIGHT THEME)
  *
- * Ported from the hi-fi prototype (styles.css).
- * Source values are oklch; pre-converted to hex for React Native.
+ * Redesigned to the "KJ Fitness light theme" spec: a bright, teal-tinted white
+ * system built around the brand teal (#15C2CB). Token names match the original
+ * shape (bg0…bg3, line, inkHi…inkLo, accent*) so this is a drop-in swap — every
+ * screen reads the same tokens and flips at once.
  *
- * Accent is themeable — default is red.
- * Use ACCENT_PALETTES[key] to swap the accent across the app.
+ * NOTE: the export is still named `dark` because ~20 screens import `{ dark }`
+ * for surface tokens. It now holds the LIGHT surface stack. The original dark
+ * palette is preserved below as `trueDark` for a future theme switcher.
  */
 
-// ─── Accent palettes ──────────────────────────────────────────────────────────
-// All accents share oklch(0.68 0.20 <hue>) — same chroma + lightness,
-// so they stay harmonious when swapped via the Tweaks panel.
 export const ACCENT_PALETTES = {
-  // KJ Fitness brand teal — matches the logo
   teal: {
     accent:     '#15C2CB', // KJ logo teal
-    accentSoft: 'rgba(21, 194, 203, 0.16)',
-    accentInk:  '#04282B', // deep teal-black — text/icon on teal bg
+    accentSoft: 'rgba(21, 194, 203, 0.14)',
+    accentInk:  '#04282B', // deep teal-black — text/icon on teal bg (never white on teal)
     accentDark: '#0E9AA1',
-  },
-  red: {
-    accent:     '#E53935', // oklch(0.68 0.20  25)
-    accentSoft: 'rgba(229, 57, 53, 0.16)',
-    accentInk:  '#1F1010', // oklch(0.15 0.01  30) — text on accent bg
-    accentDark: '#C62828',
-  },
-  lime: {
-    accent:     '#4EC94F', // oklch(0.68 0.20 145)
-    accentSoft: 'rgba(78, 201, 79, 0.16)',
-    accentInk:  '#0D1A0E',
-    accentDark: '#388E3C',
-  },
-  cobalt: {
-    accent:     '#4A8FFF', // oklch(0.68 0.20 250)
-    accentSoft: 'rgba(74, 143, 255, 0.16)',
-    accentInk:  '#0A1020',
-    accentDark: '#1565C0',
-  },
-  amber: {
-    accent:     '#C9A200', // oklch(0.68 0.20  75)
-    accentSoft: 'rgba(201, 162, 0, 0.16)',
-    accentInk:  '#1A1400',
-    accentDark: '#F57F17',
   },
 };
 
-// ─── Dark theme (default) ─────────────────────────────────────────────────────
-// Warm near-black surface stack — no pure black (oklch hue ~35)
-export const dark = {
-  // Surfaces — cool slate stack tuned for the KJ teal accent
-  bg0:      '#0D1517', // screen background (cool near-black)
-  bg1:      '#152023', // cards
-  bg2:      '#1D2B2E', // elevated cards
-  bg3:      '#26373B', // inputs / pressed states
+// ─── Preserved original dark palette (not wired — for a future dark mode) ─────
+export const trueDark = {
+  bg0: '#0D1517', bg1: '#152023', bg2: '#1D2B2E', bg3: '#26373B',
+  line: '#2E4348', lineSoft: 'rgba(46, 67, 72, 0.55)',
+  inkHi: '#F4F8F8', inkMd: '#B4C2C3', inkLo: '#7E8E90',
+  ok: '#4BC878', warn: '#CBB02A',
+  ...ACCENT_PALETTES.teal,
+};
 
-  // Borders
-  line:     '#2E4348', // cool slate border
-  lineSoft: 'rgba(46, 67, 72, 0.55)',
+// ─── Active LIGHT surface stack (teal-tinted white) ───────────────────────────
+export const light = {
+  // Surfaces
+  bg0:      '#F7FCFC', // screen background
+  bg1:      '#FFFFFF', // cards
+  bg2:      '#F4FBFB', // inset / raised
+  bg3:      '#EAF6F7', // inputs / pressed
 
-  // Text
-  inkHi:    '#F4F8F8', // primary text (cool white)
-  inkMd:    '#B4C2C3', // secondary text
-  inkLo:    '#7E8E90', // muted / disabled
+  // Borders — visible hairline on light (bolder outlines per design frames)
+  line:     '#CFE2E4',
+  lineSoft: 'rgba(10, 59, 62, 0.12)',
+
+  // Ink (teal-dark text on light)
+  inkHi:    '#0A3B3E', // primary text · 12.4:1
+  inkMd:    '#4A6A6D', // secondary · 6.3:1
+  inkLo:    '#7C9497', // muted · 3.4:1 — ≥13px only
 
   // Status
-  ok:       '#4BC878', // success / adherence
-  warn:     '#CBB02A', // warning / overdue
+  ok:       '#1FB86A',
+  warn:     '#E0A500',
 
   // Accent (KJ teal)
   ...ACCENT_PALETTES.teal,
 };
 
-// ─── Light theme ─────────────────────────────────────────────────────────────
-// Paper-warm, not blue-white
-export const light = {
-  // Surfaces
-  bg0:      '#F9F7F3', // oklch(0.985 0.004 70)
-  bg1:      '#F3F0EB', // oklch(0.965 0.006 70)
-  bg2:      '#EDE9E2', // oklch(0.94  0.008 70)
-  bg3:      '#E4DFD7', // oklch(0.91  0.01  70)
-
-  // Borders
-  line:     '#D9D4CC', // oklch(0.86  0.008 70)
-  lineSoft: 'rgba(217, 212, 204, 0.7)',
-
-  // Text
-  inkHi:    '#2E221C', // oklch(0.20 0.014 40)
-  inkMd:    '#6A5A52', // oklch(0.42 0.012 40)
-  inkLo:    '#948E86', // same as dark
-
-  // Status
-  ok:       '#1E9E50',
-  warn:     '#A07800',
-
-  // Accent (KJ teal — lighter alpha for light bg)
-  ...ACCENT_PALETTES.teal,
-  accentSoft: 'rgba(21, 194, 203, 0.12)',
-  accentInk:  '#FFFFFF',
-};
+// `dark` alias now carries the LIGHT tokens (see file header).
+export const dark = light;
 
 // ─── Gradients ────────────────────────────────────────────────────────────────
 export const gradients = {
-  // Login hero overlay (bottom fade to bg)
-  hero: ['transparent', 'rgba(13, 21, 23, 0.75)', '#0D1517'],
-  // Accent gradient — KJ logo badge, primary buttons
+  // Header / hero backdrop — soft teal wash fading to the screen colour
+  hero: ['#DCF3F5', '#F7FCFC'],
+  // Accent gradient — KJ logo badge, primary CTAs (135°, flip to 225° under RTL)
   primary: ['#1AC8D1', '#0E9AA1'],
   // Avatar gradient
   avatar: ['#1AC8D1', '#0E9AA1'],
   // Accent card tint (top fade)
   accentCard: ['rgba(21, 194, 203, 0.16)', 'transparent'],
-  // Stage background glow (from prototype .stage)
+  // Full-bleed light teal stage wash
   stageDark: [
-    'rgba(21, 32, 35, 0.85)',
+    'rgba(230, 250, 251, 0.85)',
     'transparent',
-    'rgba(20, 30, 33, 0.4)',
-    'rgba(13, 21, 23, 1)',
+    'rgba(230, 250, 251, 0.4)',
+    '#F7FCFC',
   ],
 };
 
-// ─── Semantic aliases (dark mode, matches prototype default) ──────────────────
-// CSS variable → RN color mapping:
-//   --bg-0  → background        --ink-hi → textPrimary
-//   --bg-1  → surface / card    --ink-md → textSecondary
-//   --bg-2  → surfaceRaised     --ink-lo → textMuted
-//   --bg-3  → input             --accent → primary / accent
-//   --line  → border
+// ─── Elevation (light, teal-tinted shadows) ───────────────────────────────────
+// iOS reads shadow*; Android reads elevation (and can't tint shadows — the teal
+// glow uses a #7FE0E5 top hairline as its Android stand-in where needed).
+export const elevation = {
+  e0:   { borderWidth: 1, borderColor: '#E4F0F1' },
+  e1:   { shadowColor: '#0A3B3E', shadowOpacity: 0.06, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  e2:   { shadowColor: '#0A3B3E', shadowOpacity: 0.09, shadowRadius: 30, shadowOffset: { width: 0, height: 14 }, elevation: 6 },
+  e3:   { shadowColor: '#0A3B3E', shadowOpacity: 0.16, shadowRadius: 48, shadowOffset: { width: 0, height: 24 }, elevation: 16 },
+  glow: { shadowColor: '#15C2CB', shadowOpacity: 0.32, shadowRadius: 20, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+};
+
+// ─── Motion tokens (durations ms + cubic-bezier easings) ──────────────────────
+export const motion = {
+  dur:  { tap: 100, quick: 160, base: 220, enter: 340, data: 480, party: 1200, stagger: 45 },
+  ease: {
+    standard:   [0.2, 0.8, 0.2, 1],
+    decelerate: [0, 0, 0.2, 1],
+    accelerate: [0.4, 0, 1, 1],
+    overshoot:  [0.34, 1.56, 0.64, 1],
+  },
+};
+
+// ─── Semantic aliases ─────────────────────────────────────────────────────────
 export const colors = {
   // Surfaces
-  background:     dark.bg0,
-  backgroundAlt:  dark.bg1,   // used by input fields, cards
-  surface:        dark.bg1,
-  surfaceRaised:  dark.bg2,
-  input:          dark.bg3,
-  card:           dark.bg1,   // alias used by LoginScreen etc.
-  cardRaised:     dark.bg2,
+  background:     light.bg0,
+  backgroundAlt:  light.bg2,
+  surface:        light.bg1,
+  surfaceRaised:  light.bg2,
+  input:          light.bg2,
+  card:           light.bg1,
+  cardRaised:     light.bg2,
 
   // Borders
-  border:         dark.line,
-  borderSoft:     dark.lineSoft,
-  cardBorder:     dark.lineSoft,  // alias used by LoginScreen
+  border:         light.line,
+  borderSoft:     light.lineSoft,
+  cardBorder:     light.line,
 
   // Text
-  textPrimary:    dark.inkHi,
-  textSecondary:  dark.inkMd,
-  textMuted:      dark.inkLo,
+  textPrimary:    light.inkHi,
+  textSecondary:  light.inkMd,
+  textMuted:      light.inkLo,
 
   // Brand / accent
-  primary:        dark.accent,
-  primarySoft:    dark.accentSoft,
-  primaryInk:     dark.accentInk,
-  primaryDark:    dark.accentDark,
-  accent:         dark.accent,
-  accentSoft:     dark.accentSoft,
-  accentInk:      dark.accentInk,
-  accentDark:     dark.accentDark,
+  primary:        light.accent,
+  primarySoft:    light.accentSoft,
+  primaryInk:     light.accentInk,
+  primaryDark:    light.accentDark,
+  accent:         light.accent,
+  accentSoft:     light.accentSoft,
+  accentInk:      light.accentInk,
+  accentDark:     light.accentDark,
 
   // Status
-  success:        dark.ok,
-  warning:        dark.warn,
-  error:          '#EF5350',
-  ok:             dark.ok,
-  warn:           dark.warn,
+  success:        light.ok,
+  warning:        light.warn,
+  error:          '#E5484D',
+  ok:             light.ok,
+  warn:           light.warn,
 
   // Navigation
-  tabBar:         dark.bg1,
-  tabBarBorder:   dark.line,
-  tabActive:      dark.accent,
-  tabInactive:    dark.inkLo,
+  tabBar:         light.bg1,
+  tabBarBorder:   light.line,
+  tabActive:      light.accent,
+  tabInactive:    light.inkLo,
 
   // Utility
   transparent:    'transparent',
-  overlay:        'rgba(0, 0, 0, 0.6)',
-  scrim:          'rgba(13, 21, 23, 0.85)',
+  overlay:        'rgba(4, 40, 43, 0.40)',   // dark-teal scrim behind modals
+  scrim:          'rgba(4, 40, 43, 0.55)',
   white:          '#FFFFFF',
 
-  // ─── Aliases used by coach screens ──────────────────────────────────────────
-  // These map legacy names to the canonical theme tokens so nothing breaks.
-  primaryGlow:    dark.accentSoft,   // was rgba(0,188,212,0.16) — now red accent soft
-  divider:        dark.lineSoft,     // separator lines between list rows
-  cardElevated:   dark.bg2,          // raised / elevated card surface
+  // Legacy aliases used by coach screens
+  primaryGlow:    light.accentSoft,
+  divider:        light.lineSoft,
+  cardElevated:   light.bg2,
 };
 
 export default colors;

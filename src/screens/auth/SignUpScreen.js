@@ -33,6 +33,7 @@ export default function SignUpScreen({ navigation }) {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -68,12 +69,13 @@ export default function SignUpScreen({ navigation }) {
     setError && setError(null);
     if (!name.trim()) return setError && setError(t('signup.nameRequired'));
     if (!email.trim()) return setError && setError(t('signup.emailRequired'));
+    if (phone.trim().replace(/[^0-9]/g, '').length < 7) return setError && setError(t('signup.phoneRequired'));
     if (password.length < 6) return setError && setError(t('signup.passwordMinLength'));
     if (password !== confirm) return setError && setError(t('signup.passwordMismatch'));
 
     setLoading(true);
     try {
-      await signUp(email.trim(), password, name.trim());
+      await signUp(email.trim(), password, name.trim(), phone.trim());
     } catch {
       // error set in context
     } finally {
@@ -88,7 +90,7 @@ export default function SignUpScreen({ navigation }) {
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -101,7 +103,7 @@ export default function SignUpScreen({ navigation }) {
             <Text style={styles.backText}>{t('signup.back')}</Text>
           </TouchableOpacity>
           <LinearGradient colors={gradients.primary} style={styles.logoBadge}>
-            <Ionicons name="flash" size={22} color={colors.accentInk} />
+            <Text style={styles.logoMonogram} allowFontScaling={false}>KJ</Text>
           </LinearGradient>
           <Text style={styles.headerTitle}>{t('signup.title')}</Text>
           <Text style={styles.headerSub}>{t('signup.subtitle')}</Text>
@@ -149,6 +151,16 @@ export default function SignUpScreen({ navigation }) {
             onChangeText={(v) => { setEmail(v); setError && setError(null); }}
             placeholder={t('signup.emailPlaceholder')}
             keyboardType="email-address"
+            autoCapitalize="none"
+          />
+
+          {/* Phone — so Kirsten can reach the new client */}
+          <Field
+            label={t('signup.phone')}
+            value={phone}
+            onChangeText={(v) => { setPhone(v); setError && setError(null); }}
+            placeholder={t('signup.phonePlaceholder')}
+            keyboardType="phone-pad"
             autoCapitalize="none"
           />
 
@@ -257,6 +269,7 @@ const styles = StyleSheet.create({
     shadowColor: colors.accent, shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4, shadowRadius: 14, elevation: 10,
   },
+  logoMonogram: { fontFamily: 'Sora-ExtraBold', fontSize: 26, letterSpacing: 0.5, color: colors.accentInk },
   headerTitle: { fontFamily: 'Sora-Bold', fontSize: 22, color: colors.textPrimary, marginTop: 14 },
   headerSub: { fontFamily: 'Sora-Regular', fontSize: 13, color: colors.textMuted, marginTop: 6, textAlign: 'center' },
 

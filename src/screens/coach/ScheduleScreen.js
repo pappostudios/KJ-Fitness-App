@@ -15,7 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
 import { sendPushNotification } from '../../utils/sendPushNotification';
-import { colors, gradients, dark } from '../../theme/colors';
+import { colors, gradients, dark, elevation } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 import { useLanguage } from '../../context/LanguageContext';
 import { MonthCalendar, WeekStrip, toISO, addDays, addMonths, MONTH_NAMES } from '../../components/CalendarView';
@@ -378,7 +378,7 @@ export default function ScheduleScreen({ navigation }) {
       {/* Header */}
       <LinearGradient colors={gradients.hero} style={s.header}>
         <View style={s.headerRow}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={s.headerTitle}>{t('schedule.title')}</Text>
             <Text style={s.headerSub}>
               {t('schedule.sessions', { count: totalActive })}
@@ -386,18 +386,22 @@ export default function ScheduleScreen({ navigation }) {
               {unpaidCount > 0 ? `  ·  ${t('schedule.unpaid', { count: unpaidCount })}` : ''}
             </Text>
           </View>
-          <View style={s.headerBtns}>
-            <TouchableOpacity style={s.availBtn} onPress={openAvailability} activeOpacity={0.85}>
-              <Ionicons name="time-outline" size={16} color={colors.accent} />
-              <Text style={s.availBtnText}>{t('schedule.availability')}{slots.length > 0 ? ` · ${slots.length}` : ''}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.addBtn} onPress={openAdd} activeOpacity={0.85}>
-              <LinearGradient colors={gradients.primary} style={s.addBtnGrad}>
-                <Ionicons name="add" size={18} color="#fff" />
-                <Text style={s.addBtnText}>{t('schedule.addSession')}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+        </View>
+
+        {/* Action buttons — own full-width row so neither clips off-screen */}
+        <View style={s.headerBtns}>
+          <TouchableOpacity style={s.availBtn} onPress={openAvailability} activeOpacity={0.85}>
+            <Ionicons name="time-outline" size={16} color={colors.accent} />
+            <Text style={s.availBtnText} numberOfLines={1}>
+              {t('schedule.availability')}{slots.length > 0 ? ` · ${slots.length}` : ''}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.addBtn} onPress={openAdd} activeOpacity={0.85}>
+            <LinearGradient colors={gradients.primary} style={s.addBtnGrad}>
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text style={s.addBtnText} numberOfLines={1}>{t('schedule.addSession')}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
         {/* View mode toggle */}
@@ -1197,20 +1201,22 @@ const s = StyleSheet.create({
 
   // Header
   header: { paddingTop: 16, paddingHorizontal: 20, paddingBottom: 0 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 14 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 12 },
   headerTitle: { fontFamily: 'Sora-Bold', fontSize: 22, color: colors.textPrimary },
   headerSub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, marginTop: 3 },
-  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 14 },
   availBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
+    flex: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     backgroundColor: colors.accent + '15', borderRadius: 12,
-    borderWidth: 1, borderColor: colors.accent + '33',
-    paddingHorizontal: 12, paddingVertical: 8,
+    borderWidth: 1, borderColor: colors.accent + '40',
+    paddingHorizontal: 12, paddingVertical: 11,
   },
-  availBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 12.5, color: colors.accent },
-  addBtn: { borderRadius: 12, overflow: 'hidden' },
-  addBtnGrad: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 9, gap: 6 },
-  addBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 13, color: '#fff' },
+  availBtnText: { fontFamily: 'Sora-Bold', fontSize: 13, color: colors.accent, flexShrink: 1 },
+  addBtn: { flex: 1, borderRadius: 12, overflow: 'hidden',
+    shadowColor: colors.accent, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 5 },
+  addBtnGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 6 },
+  addBtnText: { fontFamily: 'Sora-Bold', fontSize: 13, color: '#fff' },
 
   availSub: { fontFamily: 'Sora-Regular', fontSize: 12.5, color: colors.textMuted, textAlign: 'center', marginTop: -8, marginBottom: 14 },
   requestBanner: {
@@ -1234,13 +1240,13 @@ const s = StyleSheet.create({
   // View mode toggle
   modeToggle: { flexDirection: 'row', gap: 8, paddingBottom: 14 },
   modeBtn: {
-    flex: 1, paddingVertical: 7, borderRadius: 10,
-    backgroundColor: dark.bg2, alignItems: 'center',
-    borderWidth: 1, borderColor: dark.line,
+    flex: 1, paddingVertical: 9, borderRadius: 10,
+    backgroundColor: dark.bg1, alignItems: 'center',
+    borderWidth: 1.5, borderColor: dark.line,
   },
   modeBtnActive: { backgroundColor: colors.accent + '22', borderColor: colors.accent },
-  modeBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 12, color: colors.textMuted },
-  modeBtnTextActive: { color: colors.accent },
+  modeBtnText: { fontFamily: 'Sora-Bold', fontSize: 13, color: colors.textSecondary },
+  modeBtnTextActive: { color: colors.accentDark },
 
   // Calendar section
   calSection: { padding: 16, paddingBottom: 8 },
@@ -1268,6 +1274,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'stretch',
     backgroundColor: dark.bg1, borderRadius: 14,
     borderWidth: 1, borderColor: dark.line, overflow: 'hidden',
+    ...elevation.e1,
   },
   sessionAccent: { width: 4, alignSelf: 'stretch' },
   sessionBody: { flex: 1, padding: 12, gap: 4 },
@@ -1419,7 +1426,7 @@ const s = StyleSheet.create({
   pdfAttachBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: colors.accent + '12', borderRadius: 12,
-    borderWidth: 1, borderColor: colors.accent + '44', borderStyle: 'dashed',
+    borderWidth: 1, borderColor: colors.accent + '44',
     paddingHorizontal: 14, paddingVertical: 12,
   },
   pdfAttachBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.accent },

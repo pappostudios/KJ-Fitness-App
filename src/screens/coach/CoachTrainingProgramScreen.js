@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useLanguage } from '../../context/LanguageContext';
-import { colors, gradients, dark } from '../../theme/colors';
+import { colors, gradients, dark, elevation } from '../../theme/colors';
 import { sendPushNotification } from '../../utils/sendPushNotification';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -432,7 +432,7 @@ export default function CoachTrainingProgramScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
           <Ionicons name={isRTL ? 'chevron-forward' : 'chevron-back'} size={22} color={colors.textPrimary} />
@@ -556,7 +556,7 @@ function EditorView({
 }) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
       <View style={styles.modalHeader}>
         <TouchableOpacity onPress={onCancel} activeOpacity={0.7} disabled={saving}>
           <Text style={styles.modalCancel}>{t('trainingProgram.cancel')}</Text>
@@ -1034,7 +1034,8 @@ const styles = StyleSheet.create({
 
   workoutCard: {
     backgroundColor: dark.bg1, borderRadius: 16,
-    borderWidth: 1, borderColor: dark.lineSoft, overflow: 'hidden',
+    borderWidth: 1, borderColor: dark.line, overflow: 'hidden',
+    ...elevation.e1,
   },
   workoutCardHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14,
@@ -1117,14 +1118,16 @@ const styles = StyleSheet.create({
 
   addExerciseBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: dark.line,
+    borderRadius: 10, borderWidth: 1, borderColor: colors.accent + '40',
+    backgroundColor: colors.accent + '10',
     paddingVertical: 9, marginTop: 2,
   },
   addExerciseBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 12.5, color: colors.accent },
 
   addWorkoutBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: dark.line,
+    borderRadius: 14, borderWidth: 1, borderColor: colors.accent + '40',
+    backgroundColor: colors.accent + '10',
     paddingVertical: 13,
   },
   addWorkoutBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 13.5, color: colors.accent },

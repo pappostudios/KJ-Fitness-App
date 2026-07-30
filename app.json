@@ -6,11 +6,11 @@
     "scheme": "kjfitness",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0D1517"
+      "backgroundColor": "#F7FCFC"
     },
     "ios": {
       "supportsTablet": false,
@@ -61,7 +61,13 @@
         }
       ],
       "expo-font",
-      "expo-document-picker"
+      "expo-document-picker",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.525333297888-s6qfi53grleplf0tbdh1gvddhh4jr3q3"
+        }
+      ]
     ],
     "updates": {
       "url": "https://u.expo.dev/53c02adf-30fb-45b4-970d-ef07931554ae"

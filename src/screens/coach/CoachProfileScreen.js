@@ -10,7 +10,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { colors, gradients, dark } from '../../theme/colors';
+import { colors, gradients, dark, elevation } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 function Eyebrow({ children, style }) {
@@ -78,7 +78,7 @@ export default function CoachProfileScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={dark.bg0} />
+      <StatusBar barStyle="dark-content" backgroundColor={dark.bg0} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           contentContainerStyle={styles.content}
@@ -274,7 +274,8 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: dark.bg1, borderRadius: 18,
-    borderWidth: 1, borderColor: dark.lineSoft, overflow: 'hidden',
+    borderWidth: 1, borderColor: dark.line, overflow: 'hidden',
+    ...elevation.e1,
   },
   divider: { height: 1, backgroundColor: dark.lineSoft, marginHorizontal: 16 },
 
