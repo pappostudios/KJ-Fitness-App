@@ -38,21 +38,23 @@ service cloud.firestore {
     // ── Users ────────────────────────────────────────────────────────────────
     // A user can always read/create/update their OWN profile — this is what
     // lets a pending account exist, show "waiting for approval", and flip to
-    // approved when the coach updates it. Coach can read/update/delete anyone.
+    // approved when the coach updates it. Delete is also owner-or-coach: a
+    // client can delete their OWN profile as the final step of self-serve
+    // account deletion (this is what revokes their app access).
     match /users/{uid} {
       allow read:   if isOwner(uid) || isCoach();
       allow create: if isOwner(uid);
       allow update: if isOwner(uid) || isCoach();
-      allow delete: if isCoach();
+      allow delete: if isOwner(uid) || isCoach();
     }
 
     // ── Pending join requests ────────────────────────────────────────────────
-    // Coach reads and deletes; a new client creates their own request. This
-    // must stay open to any owner so the approval queue can be populated.
+    // Coach reads and deletes; a new client creates their own request and can
+    // also delete it themselves (part of self-serve account deletion).
     match /pendingRequests/{uid} {
       allow read:   if isCoach();
       allow create: if isOwner(uid);
-      allow delete: if isCoach();
+      allow delete: if isOwner(uid) || isCoach();
     }
 
     // ── Time slots ───────────────────────────────────────────────────────────
@@ -66,19 +68,22 @@ service cloud.firestore {
     }
 
     // ── Bookings ─────────────────────────────────────────────────────────────
-    // Coach can read/update all bookings (e.g. mark as paid).
-    // Approved clients can read and create their own; can also update it.
+    // Coach can read/update/delete all bookings (e.g. mark as paid).
+    // Approved clients can read/create/update their own, and delete their own
+    // as part of self-serve account deletion.
     match /bookings/{bookingId} {
       allow read:   if isCoach() ||
                        (isApproved() && resource.data.clientId == request.auth.uid);
       allow create: if isApproved();
       allow update: if isCoach() ||
                        (isApproved() && resource.data.clientId == request.auth.uid);
-      allow delete: if isCoach();
+      allow delete: if isCoach() ||
+                       (isApproved() && resource.data.clientId == request.auth.uid);
     }
 
     // ── Conversations ─────────────────────────────────────────────────────────
-    // Coach can read/list all; approved clients can read/update their own.
+    // Coach can read/list all; approved clients can read/update/delete their
+    // own conversation (delete is part of self-serve account deletion).
     match /conversations/{convId} {
       // Coach can list the entire collection (no resource.data needed for list)
       allow list:   if isCoach();
@@ -87,14 +92,14 @@ service cloud.firestore {
       allow create: if isApproved();
       allow update: if isCoach() ||
                        (isApproved() && resource.data.clientId == request.auth.uid);
-      allow delete: if isCoach();
+      allow delete: if isCoach() || (isApproved() && convId == request.auth.uid);
 
       // Messages subcollection
       // convId is always the client's uid, so no extra document read needed
       match /messages/{msgId} {
         allow read:   if isCoach() || (isApproved() && convId == request.auth.uid);
         allow create: if isApproved();
-        allow delete: if isCoach();
+        allow delete: if isCoach() || (isApproved() && convId == request.auth.uid);
       }
     }
 
@@ -121,12 +126,14 @@ service cloud.firestore {
     }
 
     // ── Body Assessments ─────────────────────────────────────────────────────
-    // Coach creates/updates; approved client can read their own assessments.
+    // Coach creates/updates; approved client can read their own assessments,
+    // and delete their own as part of self-serve account deletion.
     match /assessments/{asmtId} {
       allow read:   if isCoach() || (isApproved() && resource.data.clientId == request.auth.uid);
       allow create: if isCoach();
       allow update: if isCoach();
-      allow delete: if isCoach();
+      allow delete: if isCoach() ||
+                       (isApproved() && resource.data.clientId == request.auth.uid);
     }
 
     // ── Training Programs (structured, versioned per-client workout plans) ──

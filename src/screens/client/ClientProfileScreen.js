@@ -11,14 +11,19 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../config/firebase';
+import {
+  doc, setDoc, serverTimestamp,
+  collection, query, where, getDocs, deleteDoc,
+} from 'firebase/firestore';
+import { deleteUser } from 'firebase/auth';
+import { db, auth } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients, elevation } from '../../theme/colors';
@@ -38,6 +43,7 @@ export default function ClientProfileScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [dailyReminder, setDailyReminder] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -123,6 +129,60 @@ export default function ClientProfileScreen({ navigation }) {
       { text: t('clientProfile.cancel'), style: 'cancel' },
       { text: t('clientProfile.signOut'), style: 'destructive', onPress: logOut },
     ]);
+  };
+
+  // ── Self-serve account deletion (Play/App Store requirement) ─────────────
+  // Mirrors the coach's performRemoval in ClientProgressScreen.js, run by the
+  // client on their own uid. Deletes the users doc LAST — that's what revokes
+  // app access (the live profile listener in AuthContext treats a vanished
+  // profile as a ghost account and signs the device out automatically).
+  async function deleteCollectionWhere(coll, field, value) {
+    const snap = await getDocs(query(collection(db, coll), where(field, '==', value)));
+    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+  }
+
+  const performAccountDeletion = async () => {
+    if (!user?.uid) return;
+    setDeleting(true);
+    try {
+      await Promise.all([
+        deleteCollectionWhere('bookings', 'clientId', user.uid),
+        deleteCollectionWhere('progress', 'clientId', user.uid),
+        deleteCollectionWhere('assessments', 'clientId', user.uid),
+      ]);
+
+      const msgsSnap = await getDocs(collection(db, 'conversations', user.uid, 'messages'));
+      await Promise.all(msgsSnap.docs.map((d) => deleteDoc(d.ref)));
+      await deleteDoc(doc(db, 'conversations', user.uid)).catch(() => {});
+      await deleteDoc(doc(db, 'pendingRequests', user.uid)).catch(() => {});
+
+      // Revokes app access — must be last.
+      await deleteDoc(doc(db, 'users', user.uid));
+
+      // Best-effort: also remove the Firebase Auth credential itself. This
+      // can fail with 'auth/requires-recent-login' on an old session; that's
+      // fine — the account already has no data and no app access at this
+      // point, so we still tell the user deletion succeeded and sign out.
+      await deleteUser(auth.currentUser).catch(() => {});
+
+      Alert.alert(t('clientProfile.deleted'), t('clientProfile.deletedMsg'), [
+        { text: 'OK', onPress: logOut },
+      ]);
+    } catch (e) {
+      Alert.alert(t('clientProfile.error'), e.message ?? t('clientProfile.deleteError'));
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      t('clientProfile.deleteConfirmTitle'),
+      t('clientProfile.deleteConfirmMsg'),
+      [
+        { text: t('clientProfile.cancel'), style: 'cancel' },
+        { text: t('clientProfile.deleteConfirmBtn'), style: 'destructive', onPress: performAccountDeletion },
+      ],
+    );
   };
 
   const markDirty = (setter) => (val) => {
@@ -284,6 +344,37 @@ export default function ClientProfileScreen({ navigation }) {
             <Text style={styles.signOutText}>{t('clientProfile.signOut')}</Text>
           </TouchableOpacity>
 
+          {/* Privacy policy */}
+          <TouchableOpacity
+            style={styles.privacyLink}
+            onPress={() => Linking.openURL('https://kj-fitness-80723.web.app/privacy-policy.html')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="shield-checkmark-outline" size={15} color={colors.textMuted} />
+            <Text style={styles.privacyLinkText}>{t('clientProfile.privacyPolicy')}</Text>
+          </TouchableOpacity>
+
+          {/* Danger zone — delete account & data */}
+          <View style={styles.dangerZone}>
+            <Text style={[styles.dangerTitle, { textAlign: align }]}>{t('clientProfile.dangerZone')}</Text>
+            <Text style={[styles.dangerSub, { textAlign: align }]}>{t('clientProfile.dangerZoneSub')}</Text>
+            <TouchableOpacity
+              style={styles.deleteBtn}
+              onPress={handleDeleteAccount}
+              disabled={deleting}
+              activeOpacity={0.8}
+            >
+              {deleting ? (
+                <ActivityIndicator color={colors.error || '#FF5252'} />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={17} color={colors.error || '#FF5252'} />
+                  <Text style={styles.deleteBtnText}>{t('clientProfile.deleteAccount')}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -438,4 +529,25 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   signOutText: { ...typography.body, color: colors.error || '#FF5252', fontWeight: '600' },
+
+  privacyLink: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 14, marginTop: 4,
+  },
+  privacyLinkText: { fontFamily: 'Sora-Regular', fontSize: 12.5, color: colors.textMuted, textDecorationLine: 'underline' },
+
+  dangerZone: {
+    marginTop: 28, padding: 16, borderRadius: 16,
+    borderWidth: 1, borderColor: 'rgba(239,83,80,0.3)',
+    backgroundColor: 'rgba(239,83,80,0.06)',
+  },
+  dangerTitle: { fontFamily: 'Sora-SemiBold', fontSize: 10.5, letterSpacing: 1.2, textTransform: 'uppercase', color: colors.error || '#FF5252' },
+  dangerSub: { fontFamily: 'Sora-Regular', fontSize: 12.5, color: colors.textMuted, marginTop: 4, lineHeight: 18 },
+  deleteBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 13, marginTop: 14,
+    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239,83,80,0.4)',
+    backgroundColor: 'rgba(239,83,80,0.1)',
+  },
+  deleteBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.error || '#FF5252' },
 });

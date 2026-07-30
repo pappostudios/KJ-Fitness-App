@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import {
   View, Text, Modal, ScrollView, TouchableOpacity, TextInput,
-  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
+  StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
@@ -347,6 +347,16 @@ export default function WaiverFormModal({ visible, version, onAccepted, onDeclin
             <AgreeBox checked={f.cancellation} onToggle={() => set('cancellation', !f.cancellation)} text={L(CANCELLATION)}
               error={showErrors && errors.cancellation} isHe={isHe} />
 
+            <TouchableOpacity
+              style={s.privacyLink}
+              onPress={() => Linking.openURL('https://kj-fitness-80723.web.app/privacy-policy.html')}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.privacyLinkText, isHe && s.rtl]}>
+                {isHe ? 'עיין במדיניות הפרטיות' : 'Read our Privacy Policy'}
+              </Text>
+            </TouchableOpacity>
+
             {/* 7. Signature */}
             <SectionTitle isHe={isHe}>{isHe ? 'חתימה' : 'Signature'}</SectionTitle>
             <Field label={isHe ? 'שם מלא (משמש כחתימה דיגיטלית)' : 'Full Name (serves as digital signature)'}
@@ -442,6 +452,9 @@ const s = StyleSheet.create({
   },
   checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   agreeText: { flex: 1, fontFamily: 'Sora-Regular', fontSize: 12.5, color: colors.textSecondary, lineHeight: 18 },
+
+  privacyLink: { paddingVertical: 10, alignItems: 'center' },
+  privacyLinkText: { fontFamily: 'Sora-SemiBold', fontSize: 12.5, color: colors.accent, textDecorationLine: 'underline' },
 
   footer: {
     padding: 16, gap: 8,

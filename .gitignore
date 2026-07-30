@@ -33,3 +33,6 @@ android/.idea/
 
 # Claude Code local settings
 .claude/
+
+# Firebase CLI local deploy cache
+.firebase/
