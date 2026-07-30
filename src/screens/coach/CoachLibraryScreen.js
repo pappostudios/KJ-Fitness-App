@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import {
   collection,
   query,
@@ -25,7 +27,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
-import { db } from '../../config/firebase';
+import { db, storage } from '../../config/firebase';
 import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
@@ -41,6 +43,7 @@ export default function CoachLibraryScreen({ navigation }) {
     { key: 'video',   label: t('library.video'),   emoji: '📹', hint: t('library.pasteYoutube') },
     { key: 'article', label: t('library.article'),  emoji: '📝', hint: t('library.writeContent') },
     { key: 'image',   label: t('library.image'),    emoji: '🖼', hint: t('library.pasteImage') },
+    { key: 'pdf',     label: t('library.pdf'),      emoji: '📄', hint: t('library.pastePdfLink') },
   ];
 
   const CATEGORIES = [
@@ -64,6 +67,38 @@ export default function CoachLibraryScreen({ navigation }) {
   const [url, setUrl] = useState('');
   const [body, setBody] = useState('');
   const [isPublished, setIsPublished] = useState(true);
+  const [uploadProgress, setUploadProgress] = useState(null); // null | 0–100
+
+  const pickAndUploadPdf = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', '*/*'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      setUploadProgress(0);
+      const filename = `${Date.now()}_${asset.name}`;
+      const storageRef = ref(storage, `workout-plans/${filename}`);
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      await new Promise((resolve, reject) => {
+        const task = uploadBytesResumable(storageRef, blob);
+        task.on('state_changed',
+          (snap) => setUploadProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
+          reject,
+          () => resolve(),
+        );
+      });
+      const downloadURL = await getDownloadURL(storageRef);
+      setUrl(downloadURL);
+      if (!title.trim()) setTitle(asset.name.replace(/\.pdf$/i, ''));
+    } catch (e) {
+      Alert.alert('Upload failed', e.message ?? 'Could not upload file.');
+    } finally {
+      setUploadProgress(null);
+    }
+  }, [title]);
 
   // ── Live: all library items ───────────────────────────────────────────────
   useEffect(() => {
@@ -94,7 +129,7 @@ export default function CoachLibraryScreen({ navigation }) {
       return;
     }
     if (type !== 'article' && !url.trim()) {
-      Alert.alert(t('library.linkRequired'), t('library.linkRequiredMsg'));
+      Alert.alert(t('library.linkRequired'), type === 'pdf' ? t('library.pastePdfLink') : t('library.linkRequiredMsg'));
       return;
     }
     if (type === 'article' && !body.trim()) {
@@ -327,16 +362,50 @@ export default function CoachLibraryScreen({ navigation }) {
                   {TYPES.find((tp) => tp.key === type)?.hint ?? t('library.urlLabel')}
                   {' *'}
                 </FormLabel>
-                <TextInput
-                  style={styles.textInput}
-                  value={url}
-                  onChangeText={setUrl}
-                  placeholder="https://..."
-                  placeholderTextColor={colors.textMuted}
-                  autoCapitalize="none"
-                  keyboardType="url"
-                  textAlign="left"
-                />
+                {type === 'pdf' && (
+                  <TouchableOpacity
+                    style={[styles.uploadFileBtn, uploadProgress !== null && { opacity: 0.6 }]}
+                    onPress={pickAndUploadPdf}
+                    disabled={uploadProgress !== null}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient colors={gradients.primary} style={styles.uploadFileBtnInner}>
+                      {uploadProgress !== null ? (
+                        <>
+                          <ActivityIndicator color="#fff" size="small" />
+                          <Text style={styles.uploadFileBtnText}>{uploadProgress}%</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="cloud-upload-outline" size={18} color="#fff" />
+                          <Text style={styles.uploadFileBtnText}>
+                            {url ? 'Replace File' : 'Upload PDF from Phone'}
+                          </Text>
+                        </>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                )}
+                {url ? (
+                  <View style={styles.urlPreview}>
+                    <Ionicons name="link-outline" size={14} color={colors.textMuted} />
+                    <Text style={styles.urlPreviewText} numberOfLines={1}>{url}</Text>
+                    <TouchableOpacity onPress={() => setUrl('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TextInput
+                    style={[styles.textInput, { marginTop: type === 'pdf' ? 8 : 0 }]}
+                    value={url}
+                    onChangeText={setUrl}
+                    placeholder={type === 'pdf' ? t('library.pastePdfLink') : 'https://...'}
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize="none"
+                    keyboardType="url"
+                    textAlign="left"
+                  />
+                )}
               </>
             )}
 
@@ -569,4 +638,18 @@ const styles = StyleSheet.create({
   },
   publishLabel: { ...typography.h4, color: colors.textPrimary },
   publishSub: { ...typography.bodySmall, color: colors.textSecondary, marginTop: 2 },
+
+  uploadFileBtn: { borderRadius: 12, overflow: 'hidden' },
+  uploadFileBtnInner: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 12,
+  },
+  uploadFileBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: '#fff' },
+  urlPreview: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.card, borderRadius: 10,
+    borderWidth: 1, borderColor: colors.cardBorder,
+    paddingHorizontal: 12, paddingVertical: 10, marginTop: 6,
+  },
+  urlPreviewText: { flex: 1, fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted },
 });

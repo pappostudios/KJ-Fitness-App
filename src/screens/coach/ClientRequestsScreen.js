@@ -120,7 +120,7 @@ export default function ClientRequestsScreen() {
             <View style={styles.requestCard}>
               {/* Avatar */}
               <LinearGradient
-                colors={['rgba(229,57,53,0.3)', 'rgba(198,40,40,0.3)']}
+                colors={['rgba(21, 194, 203,0.3)', 'rgba(14, 154, 161,0.3)']}
                 style={styles.avatar}
               >
                 <Text style={styles.avatarText}>

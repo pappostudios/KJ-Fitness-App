@@ -15,17 +15,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
   collection, query, orderBy, onSnapshot,
-  addDoc, setDoc, doc, serverTimestamp, increment,
+  addDoc, setDoc, doc, getDoc, serverTimestamp, increment,
 } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { sendPushNotification } from '../../utils/sendPushNotification';
 import { colors, gradients, dark } from '../../theme/colors';
 import { typography } from '../../theme/typography';
 
 // Coach email — messages from this address show as KJ
 const COACH_EMAIL = 'kjfitness.info@gmail.com';
+// Coach Firebase uid — used to fetch the coach's push token
+const COACH_EMAIL_PRIMARY = 'pappostudios@gmail.com';
 
 function Avatar({ initials, size = 32 }) {
   return (
@@ -44,14 +47,16 @@ function formatTime(ts) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function MessagesScreen() {
+export default function MessagesScreen({ navigation }) {
   const { user, profile } = useAuth();
   const { t, isRTL } = useLanguage();
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
+  const [inputKey, setInputKey] = useState(0); // increment to force-reset Android TextInput
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const flatListRef = useRef(null);
+  const coachPushToken = useRef(null);
 
   // Use the client's uid directly — same path the coach reads from
   const conversationId = user?.uid ?? null;
@@ -65,13 +70,23 @@ export default function MessagesScreen() {
     return onSnapshot(q, (snap) => {
       setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLoading(false);
+      // Scroll to bottom after state update renders
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     });
   }, [conversationId]);
+
+  // Fetch coach push token once so we can notify her when client sends a message
+  useEffect(() => {
+    getDoc(doc(db, 'settings', 'coachToken'))
+      .then((snap) => { coachPushToken.current = snap.data()?.pushToken ?? null; })
+      .catch(() => {});
+  }, []);
 
   const send = async () => {
     const trimmed = text.trim();
     if (!trimmed || sending || !conversationId) return;
     setText('');
+    setInputKey((k) => k + 1); // force Android TextInput to fully clear
     setSending(true);
     try {
       // 1. Add message to the shared conversation path
@@ -96,6 +111,16 @@ export default function MessagesScreen() {
         },
         { merge: true },
       );
+
+      // 3. Notify coach
+      if (coachPushToken.current) {
+        sendPushNotification(
+          coachPushToken.current,
+          `💬 ${clientName}`,
+          trimmed,
+          { screen: 'Conversations' },
+        ).catch(() => {});
+      }
     } catch (e) {
       console.warn('Send error', e);
       setText(trimmed); // restore on failure
@@ -120,6 +145,33 @@ export default function MessagesScreen() {
     const prevMsg = messages[index - 1];
     const showAvatar = fromCoach && (!prevMsg || !isCoachMsg(prevMsg));
     const isLast = index === messages.length - 1;
+
+    // Session-invite messages are tappable → open the session on the Schedule tab
+    if (item.type === 'session_invite' && item.bookingId) {
+      return (
+        <View style={[styles.msgRow, styles.msgRowLeft, { marginBottom: isLast ? 16 : 4 }]}>
+          <View style={styles.msgAvatarSlot}>
+            {showAvatar ? <Avatar initials="KJ" size={28} /> : null}
+          </View>
+          <TouchableOpacity
+            style={styles.inviteCard}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('Schedule', { openBookingId: item.bookingId })}
+          >
+            <View style={styles.inviteIcon}>
+              <Ionicons name="calendar" size={18} color={colors.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.inviteText}>{item.text}</Text>
+              <View style={styles.inviteCta}>
+                <Text style={styles.inviteCtaText}>{t('chat.viewSession')}</Text>
+                <Ionicons name="chevron-forward" size={13} color={colors.accent} />
+              </View>
+            </View>
+          </TouchableOpacity>
+        </View>
+      );
+    }
 
     return (
       <View
@@ -198,6 +250,7 @@ export default function MessagesScreen() {
         {/* Input bar */}
         <View style={styles.inputBar}>
           <TextInput
+            key={inputKey}
             style={styles.textInput}
             value={text}
             onChangeText={setText}
@@ -206,6 +259,8 @@ export default function MessagesScreen() {
             multiline
             maxLength={1000}
             returnKeyType="default"
+            textAlign={isRTL ? 'right' : 'left'}
+            autoCorrect={false}
           />
           <TouchableOpacity
             style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
@@ -283,6 +338,21 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.6)', marginTop: 4, alignSelf: 'flex-end',
   },
   bubbleTimeCoach: { color: colors.textMuted },
+
+  // Session invite card
+  inviteCard: {
+    maxWidth: '78%', flexDirection: 'row', gap: 10,
+    backgroundColor: colors.accent + '12', borderRadius: 16,
+    borderBottomLeftRadius: 4, borderWidth: 1, borderColor: colors.accent + '44',
+    paddingHorizontal: 12, paddingVertical: 11,
+  },
+  inviteIcon: {
+    width: 34, height: 34, borderRadius: 9,
+    backgroundColor: colors.accent + '22', alignItems: 'center', justifyContent: 'center',
+  },
+  inviteText: { fontFamily: 'Sora-Regular', fontSize: 14, color: colors.textPrimary, lineHeight: 20 },
+  inviteCta: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 6 },
+  inviteCtaText: { fontFamily: 'Sora-SemiBold', fontSize: 12.5, color: colors.accent },
 
   // Input bar
   inputBar: {

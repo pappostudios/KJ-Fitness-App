@@ -20,6 +20,7 @@ setup-github.ps1
 
 # Android build artifacts (large, auto-generated — not needed in git or EAS)
 android/app/build/
+android/app/.cxx/
 android/build/
 android/.gradle/
 android/.idea/
@@ -29,3 +30,6 @@ android/.idea/
 # package name + SHA-1 fingerprints, so it is safe in source control).
 # GoogleService-Info.plist would be committed the same way if iOS is added.
 # GoogleService-Info.plist
+
+# Claude Code local settings
+.claude/

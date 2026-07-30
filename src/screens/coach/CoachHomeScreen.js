@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  collection, query, where, onSnapshot, orderBy,
+  collection, query, where, onSnapshot, orderBy, getDocs, limit,
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
@@ -73,6 +73,36 @@ export default function CoachHomeScreen({ navigation }) {
   const [sessionsThisWeek, setSessionsThisWeek] = useState(null);
   const [newMessages, setNewMessages] = useState(null);
   const [monthlyRevenue, setMonthlyRevenue] = useState(null);
+  const [needsAttention, setNeedsAttention] = useState(null);
+
+  // Clients needing attention: last logged workout ≥ 4 days ago (or never)
+  useEffect(() => {
+    const q = query(
+      collection(db, 'users'),
+      where('role', '==', 'client'),
+      where('status', '==', 'approved'),
+    );
+    const unsub = onSnapshot(q, async (snap) => {
+      try {
+        const results = await Promise.all(snap.docs.map(async (d) => {
+          const recentSnap = await getDocs(query(
+            collection(db, 'progress'),
+            where('clientId', '==', d.id),
+            orderBy('date', 'desc'),
+            limit(1),
+          ));
+          const lastDate = recentSnap.empty ? null : recentSnap.docs[0].data().date;
+          if (!lastDate) return true;
+          const dsl = Math.floor((Date.now() - new Date(lastDate + 'T00:00:00')) / 86400000);
+          return dsl >= 4;
+        }));
+        setNeedsAttention(results.filter(Boolean).length);
+      } catch {
+        setNeedsAttention(null);
+      }
+    });
+    return unsub;
+  }, []);
 
   // 1. Active clients
   useEffect(() => {
@@ -191,6 +221,26 @@ export default function CoachHomeScreen({ navigation }) {
           </View>
         </View>
 
+        {/* ── Needs attention ───────────────────────────────────────────── */}
+        {needsAttention > 0 && (
+          <View style={styles.sectionPad}>
+            <TouchableOpacity
+              style={styles.attentionCard}
+              activeOpacity={0.85}
+              onPress={() => navigation.navigate('Clients')}
+            >
+              <View style={styles.attentionIcon}>
+                <Ionicons name="alert-circle" size={20} color={colors.warning} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.attentionTitle}>{t('home.needsAttentionTitle', { count: needsAttention })}</Text>
+                <Text style={styles.attentionSub}>{t('home.needsAttentionSub')}</Text>
+              </View>
+              <Ionicons name={isRTL ? 'chevron-back' : 'chevron-forward'} size={18} color={colors.warning} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* ── Stats grid ────────────────────────────────────────────────── */}
         <View style={styles.sectionPad}>
           <Eyebrow style={{ marginBottom: 12 }}>{t('home.overview').toUpperCase()}</Eyebrow>
@@ -273,8 +323,8 @@ const styles = StyleSheet.create({
 
   coachBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    backgroundColor: 'rgba(229,57,53,0.12)', borderWidth: 1,
-    borderColor: 'rgba(229,57,53,0.35)', borderRadius: 999,
+    backgroundColor: 'rgba(21, 194, 203,0.12)', borderWidth: 1,
+    borderColor: 'rgba(21, 194, 203,0.35)', borderRadius: 999,
     paddingHorizontal: 12, paddingVertical: 5,
   },
   coachBadgeText: {
@@ -284,6 +334,19 @@ const styles = StyleSheet.create({
   sectionPad: { paddingHorizontal: 20, paddingTop: 18 },
 
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+
+  attentionCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: 'rgba(203,176,42,0.10)', borderRadius: 16,
+    borderWidth: 1, borderColor: 'rgba(203,176,42,0.30)',
+    padding: 14,
+  },
+  attentionIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(203,176,42,0.15)', alignItems: 'center', justifyContent: 'center',
+  },
+  attentionTitle: { fontFamily: 'Sora-Bold', fontSize: 14.5, color: colors.textPrimary },
+  attentionSub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   statCard: {
     width: '47.5%',
     backgroundColor: dark.bg1, borderRadius: 18,
@@ -291,8 +354,8 @@ const styles = StyleSheet.create({
     padding: 18, gap: 8,
   },
   statCardAccent: {
-    backgroundColor: 'rgba(229,57,53,0.08)',
-    borderColor: 'rgba(229,57,53,0.35)',
+    backgroundColor: 'rgba(21, 194, 203,0.08)',
+    borderColor: 'rgba(21, 194, 203,0.35)',
   },
   statValue: {
     fontFamily: 'JetBrainsMono-Medium', fontSize: 26, fontWeight: '700',
@@ -308,8 +371,8 @@ const styles = StyleSheet.create({
   },
   actionIconWrap: {
     width: 42, height: 42, borderRadius: 13,
-    backgroundColor: 'rgba(229,57,53,0.12)', borderWidth: 1,
-    borderColor: 'rgba(229,57,53,0.25)',
+    backgroundColor: 'rgba(21, 194, 203,0.12)', borderWidth: 1,
+    borderColor: 'rgba(21, 194, 203,0.25)',
     alignItems: 'center', justifyContent: 'center',
   },
   actionTitle: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },

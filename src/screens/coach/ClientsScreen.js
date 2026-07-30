@@ -38,6 +38,7 @@ function Avatar({ initials, size = 42, active }) {
 export default function ClientsScreen({ navigation }) {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sortByAttention, setSortByAttention] = useState(true);
   const { t, isRTL } = useLanguage();
 
   useEffect(() => {
@@ -48,27 +49,44 @@ export default function ClientsScreen({ navigation }) {
       orderBy('name', 'asc'),
     );
     const unsub = onSnapshot(q, async (snap) => {
-      const base = snap.docs.map((d) => ({ id: d.id, ...d.data(), lastWorkout: null, workoutsThisMonth: 0 }));
+      const base = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const monthStart = getMonthStart();
+      const weekStart = getWeekStart();
+      const sinceStart = weekStart < monthStart ? weekStart : monthStart;
       const enriched = await Promise.all(
         base.map(async (client) => {
           try {
-            const monthStart = getMonthStart();
             const recentQ = query(
               collection(db, 'progress'),
               where('clientId', '==', client.uid),
               orderBy('date', 'desc'),
               limit(1),
             );
-            const monthQ = query(
+            const sinceQ = query(
               collection(db, 'progress'),
               where('clientId', '==', client.uid),
-              where('date', '>=', monthStart),
+              where('date', '>=', sinceStart),
             );
-            const [recentSnap, monthSnap] = await Promise.all([getDocs(recentQ), getDocs(monthQ)]);
+            const progQ = query(
+              collection(db, 'trainingPrograms'),
+              where('clientId', '==', client.uid),
+              where('isActive', '==', true),
+              limit(1),
+            );
+            const [recentSnap, sinceSnap, progSnap] = await Promise.all([
+              getDocs(recentQ), getDocs(sinceQ), getDocs(progQ),
+            ]);
+            const docs = sinceSnap.docs.map((x) => x.data());
+            const workoutsThisMonth = docs.filter((x) => x.date >= monthStart).length;
+            const workoutsThisWeek = docs.filter((x) => x.date >= weekStart).length;
             const lastWorkout = recentSnap.empty ? null : recentSnap.docs[0].data();
-            return { ...client, lastWorkout, workoutsThisMonth: monthSnap.size };
+            const target = progSnap.docs[0]?.data()?.targetSessionsPerWeek ?? 0;
+            const dsl = daysSince(lastWorkout?.date);
+            const status = dsl >= 10 ? 'inactive' : dsl >= 4 ? 'slipping' : 'ontrack';
+            const severity = status === 'inactive' ? 2 : status === 'slipping' ? 1 : 0;
+            return { ...client, lastWorkout, workoutsThisMonth, workoutsThisWeek, target, dsl, status, severity };
           } catch {
-            return client;
+            return { ...client, lastWorkout: null, workoutsThisMonth: 0, workoutsThisWeek: 0, target: 0, dsl: Infinity, status: 'inactive', severity: 2 };
           }
         }),
       );
@@ -77,6 +95,13 @@ export default function ClientsScreen({ navigation }) {
     });
     return unsub;
   }, []);
+
+  const attentionCount = clients.filter((c) => c.severity > 0).length;
+  const sortedClients = [...clients].sort((a, b) =>
+    sortByAttention
+      ? (b.severity - a.severity) || (a.name ?? '').localeCompare(b.name ?? '')
+      : (a.name ?? '').localeCompare(b.name ?? ''),
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -87,6 +112,28 @@ export default function ClientsScreen({ navigation }) {
         <Eyebrow>{t('clients.eyebrow')}</Eyebrow>
         <Text style={styles.headerTitle}>{t('clients.title')}</Text>
         <Text style={styles.headerSub}>{clients.length} {t('clients.active')}</Text>
+
+        {clients.length > 0 && (
+          <View style={styles.headerControls}>
+            {attentionCount > 0 ? (
+              <View style={styles.attentionPill}>
+                <Ionicons name="alert-circle" size={13} color={colors.warning} />
+                <Text style={styles.attentionPillText}>{t('clients.needAttention', { count: attentionCount })}</Text>
+              </View>
+            ) : (
+              <View style={styles.allGoodPill}>
+                <Ionicons name="checkmark-circle" size={13} color={colors.success} />
+                <Text style={styles.allGoodPillText}>{t('clients.allOnTrack')}</Text>
+              </View>
+            )}
+            <TouchableOpacity style={styles.sortToggle} onPress={() => setSortByAttention((v) => !v)} activeOpacity={0.7}>
+              <Ionicons name="swap-vertical" size={13} color={colors.textMuted} />
+              <Text style={styles.sortToggleText}>
+                {sortByAttention ? t('clients.sortAttention') : t('clients.sortName')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {loading ? (
@@ -103,7 +150,7 @@ export default function ClientsScreen({ navigation }) {
         </View>
       ) : (
         <FlatList
-          data={clients}
+          data={sortedClients}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <ClientRow
@@ -127,28 +174,44 @@ export default function ClientsScreen({ navigation }) {
   );
 }
 
+const STATUS_META = {
+  ontrack:  { color: '#4BC878', icon: 'checkmark-circle', key: 'clients.statusOnTrack' },
+  slipping: { color: '#CBB02A', icon: 'time', key: 'clients.statusSlipping' },
+  inactive: { color: '#EF5350', icon: 'alert-circle', key: 'clients.statusInactive' },
+};
+
 function ClientRow({ client, onPress, t, isRTL }) {
-  const { name, email, lastWorkout, workoutsThisMonth } = client;
+  const { name, email, lastWorkout, workoutsThisWeek, target, status, hasMedicalFlags } = client;
   const initials = getInitials(name ?? email ?? '?');
-  const hasRecentActivity = workoutsThisMonth > 0;
-  const lastDateStr = lastWorkout ? formatRelativeDate(lastWorkout.date) : '—';
+  const sm = STATUS_META[status] ?? STATUS_META.inactive;
+  const lastDateStr = lastWorkout ? formatRelativeDate(lastWorkout.date) : t('clients.never');
 
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
-      <Avatar initials={initials} size={44} active={hasRecentActivity} />
+      <Avatar initials={initials} size={44} active={status === 'ontrack'} />
 
       <View style={styles.rowContent}>
         <View style={styles.rowTopLine}>
           <Text style={styles.rowName} numberOfLines={1}>{name ?? email}</Text>
-          {workoutsThisMonth > 0 && (
-            <View style={styles.monthBadge}>
-              <Text style={styles.monthBadgeText}>{workoutsThisMonth} {t('clients.thisMonth')}</Text>
-            </View>
-          )}
+          <View style={[styles.statusBadge, { backgroundColor: sm.color + '1E', borderColor: sm.color + '55' }]}>
+            <Ionicons name={sm.icon} size={10} color={sm.color} />
+            <Text style={[styles.statusBadgeText, { color: sm.color }]}>{t(sm.key)}</Text>
+          </View>
         </View>
         <View style={styles.rowBottomLine}>
-          <Ionicons name="time-outline" size={12} color={colors.textMuted} />
+          {target > 0 && (
+            <Text style={styles.weekCount}>
+              {t('clients.weekCount', { done: workoutsThisWeek, target })}
+            </Text>
+          )}
+          <Ionicons name="time-outline" size={12} color={colors.textMuted} style={{ marginLeft: target > 0 ? 8 : 0 }} />
           <Text style={styles.rowSub}>{t('clients.lastSession', { date: lastDateStr })}</Text>
+          {hasMedicalFlags && (
+            <View style={styles.flagBadge}>
+              <Ionicons name="warning" size={10} color={colors.error} />
+              <Text style={styles.flagBadgeText}>{t('clients.medicalFlag')}</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -164,6 +227,20 @@ function getInitials(name) {
 function getMonthStart() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+function getWeekStart() {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay()); // back to Sunday
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function daysSince(iso) {
+  if (!iso) return Infinity;
+  const d = new Date(iso + 'T00:00:00');
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.floor((now - d) / 86400000);
 }
 
 function formatRelativeDate(iso) {
@@ -187,9 +264,26 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', color: colors.textMuted,
   },
 
-  header: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 18 },
+  header: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 14 },
   headerTitle: { fontFamily: 'Sora-Bold', fontSize: 28, color: colors.textPrimary, marginTop: 4 },
   headerSub: { fontFamily: 'Sora-Regular', fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  headerControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
+  attentionPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(203,176,42,0.12)', borderRadius: 999,
+    borderWidth: 1, borderColor: 'rgba(203,176,42,0.3)',
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  attentionPillText: { fontFamily: 'Sora-SemiBold', fontSize: 11.5, color: colors.warning },
+  allGoodPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(75,200,120,0.12)', borderRadius: 999,
+    borderWidth: 1, borderColor: 'rgba(75,200,120,0.3)',
+    paddingHorizontal: 10, paddingVertical: 5,
+  },
+  allGoodPillText: { fontFamily: 'Sora-SemiBold', fontSize: 11.5, color: colors.success },
+  sortToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 5, paddingHorizontal: 6 },
+  sortToggleText: { fontFamily: 'Sora-SemiBold', fontSize: 11.5, color: colors.textMuted },
 
   emptyIcon: {
     width: 56, height: 56, borderRadius: 28,
@@ -208,15 +302,23 @@ const styles = StyleSheet.create({
   avatarTextInactive: { color: colors.textMuted },
 
   rowContent: { flex: 1, gap: 5 },
-  rowTopLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  rowTopLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   rowName: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary, flex: 1 },
-  monthBadge: {
-    backgroundColor: 'rgba(229,57,53,0.12)', borderRadius: 999,
-    borderWidth: 1, borderColor: 'rgba(229,57,53,0.25)',
-    paddingHorizontal: 8, paddingVertical: 3, marginLeft: 8,
+  statusBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderRadius: 999, borderWidth: 1,
+    paddingHorizontal: 8, paddingVertical: 3,
   },
-  monthBadgeText: { fontFamily: 'Sora-SemiBold', fontSize: 10, letterSpacing: 0.3, color: colors.accent },
-  rowBottomLine: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statusBadgeText: { fontFamily: 'Sora-SemiBold', fontSize: 10, letterSpacing: 0.3 },
+  weekCount: { fontFamily: 'Sora-SemiBold', fontSize: 11.5, color: colors.accent },
+  rowBottomLine: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
   rowSub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted },
+  flagBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(239, 83, 80, 0.12)', borderRadius: 999,
+    borderWidth: 1, borderColor: 'rgba(239, 83, 80, 0.3)',
+    paddingHorizontal: 7, paddingVertical: 2, marginLeft: 4,
+  },
+  flagBadgeText: { fontFamily: 'Sora-SemiBold', fontSize: 10, letterSpacing: 0.3, color: colors.error },
   separator: { height: 1, backgroundColor: dark.lineSoft, marginLeft: 78 },
 });

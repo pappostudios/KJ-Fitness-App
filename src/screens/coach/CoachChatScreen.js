@@ -74,6 +74,8 @@ export default function CoachChatScreen({ route, navigation }) {
       await setDoc(
         doc(db, 'conversations', clientId),
         {
+          clientId,
+          clientName,
           lastMessage: txt,
           lastMessageAt: serverTimestamp(),
           unreadByClient: increment(1),
@@ -131,6 +133,14 @@ export default function CoachChatScreen({ route, navigation }) {
           <View style={styles.center}>
             <ActivityIndicator color={colors.primary} size="large" />
           </View>
+        ) : messages.length === 0 ? (
+          // Rendered outside the FlatList entirely — nesting this inside an
+          // `inverted` list and counter-transforming it with scaleY:-1 does
+          // not reliably cancel out on Android, leaving the empty state
+          // rendered upside down.
+          <View style={styles.center}>
+            <EmptyChat clientName={clientName} t={t} />
+          </View>
         ) : (
           <FlatList
             data={messages}
@@ -145,7 +155,6 @@ export default function CoachChatScreen({ route, navigation }) {
             inverted
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
-            ListEmptyComponent={<EmptyChat clientName={clientName} t={t} />}
             keyboardDismissMode="interactive"
           />
         )}
@@ -324,12 +333,11 @@ const styles = StyleSheet.create({
   },
   bubbleTimeMe: { color: 'rgba(255,255,255,0.65)', textAlign: 'right' },
 
-  // Empty (inverted FlatList, so we flip it back)
+  // Empty state — rendered outside the inverted FlatList, no counter-transform needed
   emptyWrap: {
     alignItems: 'center',
     paddingVertical: 60,
     gap: 10,
-    transform: [{ scaleY: -1 }],
   },
   emptyIcon: { fontSize: 48 },
   emptyTitle: { ...typography.h4, color: colors.textSecondary },

@@ -44,7 +44,10 @@ export default function SignUpScreen({ navigation }) {
     setGoogleLoading(true);
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      await GoogleSignin.signOut();
+      // Best-effort: clear cached account so the picker always shows.
+      // Non-fatal — if there's no cached session this can throw, and it
+      // must never abort the actual sign-in attempt below.
+      await GoogleSignin.signOut().catch(() => {});
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo?.data?.idToken ?? userInfo?.idToken ?? null;
       if (!idToken) return;
@@ -301,8 +304,8 @@ const styles = StyleSheet.create({
 
   infoBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: 'rgba(229,57,53,0.08)',
-    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(229,57,53,0.25)',
+    backgroundColor: 'rgba(21, 194, 203,0.08)',
+    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(21, 194, 203,0.25)',
     padding: 12,
   },
   infoText: { fontFamily: 'Sora-Regular', fontSize: 12.5, color: colors.textSecondary, flex: 1, lineHeight: 18 },

@@ -10,16 +10,22 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients } from '../../theme/colors';
 import { typography } from '../../theme/typography';
+
+const DAILY_PREF_KEY = 'kj_daily_reminder';
+const DAILY_ID_KEY = 'kj_daily_reminder_id';
 
 export default function ClientProfileScreen({ navigation }) {
   const { user, profile, logOut } = useAuth();
@@ -31,6 +37,7 @@ export default function ClientProfileScreen({ navigation }) {
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [dailyReminder, setDailyReminder] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -40,6 +47,41 @@ export default function ClientProfileScreen({ navigation }) {
       setNotes(profile.notes || '');
     }
   }, [profile]);
+
+  useEffect(() => {
+    AsyncStorage.getItem(DAILY_PREF_KEY).then((v) => setDailyReminder(v === '1')).catch(() => {});
+  }, []);
+
+  const toggleDailyReminder = async (on) => {
+    setDailyReminder(on);
+    try {
+      // Cancel any existing daily reminder first
+      const prevId = await AsyncStorage.getItem(DAILY_ID_KEY);
+      if (prevId) await Notifications.cancelScheduledNotificationAsync(prevId).catch(() => {});
+
+      if (on) {
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') await Notifications.requestPermissionsAsync();
+        const id = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: t('reminders.dailyTitle'),
+            body: t('reminders.dailyBody'),
+            sound: 'default',
+            data: { screen: 'Progress' },
+          },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 19, minute: 0 },
+        });
+        await AsyncStorage.setItem(DAILY_ID_KEY, id);
+        await AsyncStorage.setItem(DAILY_PREF_KEY, '1');
+      } else {
+        await AsyncStorage.removeItem(DAILY_ID_KEY);
+        await AsyncStorage.setItem(DAILY_PREF_KEY, '0');
+      }
+    } catch {
+      // revert on failure
+      setDailyReminder(!on);
+    }
+  };
 
   const getInitials = (n) => {
     if (!n) return '?';
@@ -147,6 +189,23 @@ export default function ClientProfileScreen({ navigation }) {
                   עברית
                 </Text>
               </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Daily reminder toggle */}
+          <View style={styles.langCard}>
+            <View style={styles.reminderRow}>
+              <Ionicons name="notifications-outline" size={18} color={colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.langCardTitle, { textAlign: align }]}>{t('clientProfile.dailyReminder')}</Text>
+                <Text style={[styles.langCardSub, { textAlign: align }]}>{t('clientProfile.dailyReminderSub')}</Text>
+              </View>
+              <Switch
+                value={dailyReminder}
+                onValueChange={toggleDailyReminder}
+                trackColor={{ false: '#3a3a3a', true: colors.primary }}
+                thumbColor="#fff"
+              />
             </View>
           </View>
 
@@ -303,6 +362,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   langCardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   langCardTitle: { ...typography.label, color: colors.textPrimary, marginBottom: 2 },
   langCardSub: { ...typography.caption, color: colors.textMuted },
   langRow: { flexDirection: 'row', gap: 10 },

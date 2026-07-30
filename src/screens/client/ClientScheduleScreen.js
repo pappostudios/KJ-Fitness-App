@@ -1,27 +1,30 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal, ActivityIndicator,
-  StyleSheet, Alert,
+  StyleSheet, Alert, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import {
-  collection, query, where, orderBy, onSnapshot, doc, updateDoc, serverTimestamp,
+  collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc,
+  serverTimestamp, runTransaction, addDoc, setDoc, increment,
 } from 'firebase/firestore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { db } from '../../config/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { sendPushNotification } from '../../utils/sendPushNotification';
 import { colors, gradients, dark } from '../../theme/colors';
 import { MonthCalendar, WeekStrip, toISO, addMonths, MONTH_NAMES } from '../../components/CalendarView';
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function ClientScheduleScreen() {
+export default function ClientScheduleScreen({ navigation, route }) {
   const { user } = useAuth();
   const { t, isRTL } = useLanguage();
 
   const STATUS_CONFIG = {
+    requested:            { label: t('clientSchedule.requested'),    color: '#8B5CF6', icon: 'hourglass-outline' },
     pending_confirmation: { label: t('clientSchedule.awaitingConf'), color: '#F59E0B', icon: 'time-outline' },
     confirmed:            { label: t('clientSchedule.confirmed'),    color: '#10B981', icon: 'checkmark-circle-outline' },
     cancelled:            { label: t('clientSchedule.cancelled'),    color: '#EF4444', icon: 'close-circle-outline' },
@@ -35,6 +38,9 @@ export default function ClientScheduleScreen() {
 
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [openSlots, setOpenSlots] = useState([]);
+  const [showBook, setShowBook] = useState(false);
+  const [bookingSlotId, setBookingSlotId] = useState(null);
 
   const [viewMode, setViewMode] = useState('month');
   const [calMonth, setCalMonth] = useState(new Date());
@@ -58,6 +64,129 @@ export default function ClientScheduleScreen() {
       setLoading(false);
     });
   }, [user?.uid]);
+
+  // ── Open availability slots the client can request ─────────────────────────
+  useEffect(() => {
+    const today = toISO(new Date());
+    const q = query(
+      collection(db, 'slots'),
+      where('isBooked', '==', false),
+      where('date', '>=', today),
+      orderBy('date'),
+      orderBy('time'),
+    );
+    return onSnapshot(q, (snap) => {
+      setOpenSlots(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    }, (err) => console.warn('[ClientSchedule] slots:', err.code));
+  }, []);
+
+  // ── Request a session by booking an open slot (coach approves) ─────────────
+  const requestSlot = useCallback((slot) => {
+    Alert.alert(
+      t('clientSchedule.bookSlotTitle'),
+      t('clientSchedule.bookSlotConfirm', { date: slot.date, time: slot.time }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('clientSchedule.requestBtn'),
+          onPress: async () => {
+            setBookingSlotId(slot.id);
+            const clientName = user.displayName || user.email || 'Client';
+            try {
+              const bookingRef = doc(collection(db, 'bookings'));
+              await runTransaction(db, async (tx) => {
+                const slotRef = doc(db, 'slots', slot.id);
+                const slotSnap = await tx.get(slotRef);
+                if (!slotSnap.exists() || slotSnap.data().isBooked) {
+                  throw new Error('taken');
+                }
+                tx.update(slotRef, { isBooked: true, bookedBy: user.uid });
+                tx.set(bookingRef, {
+                  clientId: user.uid,
+                  clientName,
+                  date: slot.date,
+                  time: slot.time,
+                  duration: slot.duration,
+                  location: slot.location || t('schedule.notSpecified'),
+                  sessionType: 'private',
+                  status: 'requested',
+                  clientConfirmed: true,
+                  paymentStatus: 'unpaid',
+                  price: null,
+                  workoutPlan: null,
+                  slotId: slot.id,
+                  createdAt: serverTimestamp(),
+                });
+              });
+
+              // Post an invite-style message + notify the coach
+              const msgText = t('clientSchedule.requestMsg', { date: slot.date, time: slot.time });
+              await addDoc(collection(db, 'conversations', user.uid, 'messages'), {
+                text: msgText,
+                senderId: user.uid,
+                senderRole: 'client',
+                type: 'session_invite',
+                bookingId: bookingRef.id,
+                createdAt: serverTimestamp(),
+              });
+              await setDoc(doc(db, 'conversations', user.uid), {
+                clientId: user.uid,
+                clientName,
+                lastMessage: msgText,
+                lastMessageAt: serverTimestamp(),
+                unreadByCoach: increment(1),
+              }, { merge: true });
+              try {
+                const tokenSnap = await getDoc(doc(db, 'settings', 'coachToken'));
+                const token = tokenSnap.data()?.pushToken;
+                if (token) {
+                  await sendPushNotification(
+                    token,
+                    t('clientSchedule.requestPushTitle'),
+                    t('clientSchedule.requestPushBody', { name: clientName, date: slot.date, time: slot.time }),
+                    { screen: 'Schedule' },
+                  );
+                }
+              } catch { /* non-blocking */ }
+
+              setShowBook(false);
+              setSelectedDate(slot.date);
+            } catch (e) {
+              Alert.alert(
+                t('common.error'),
+                e.message === 'taken' ? t('clientSchedule.slotTaken') : t('clientSchedule.bookError'),
+              );
+            } finally {
+              setBookingSlotId(null);
+            }
+          },
+        },
+      ],
+    );
+  }, [t, user]);
+
+  // ── Open a specific booking when arriving from a chat invite ───────────────
+  useEffect(() => {
+    const openId = route?.params?.openBookingId;
+    if (!openId) return;
+    // Clear the param immediately so it doesn't re-trigger on re-render
+    navigation?.setParams?.({ openBookingId: undefined });
+    const found = bookings.find((b) => b.id === openId);
+    if (found) {
+      setDetailBooking(found);
+      setSelectedDate(found.date);
+    } else {
+      // Past session not in the date-filtered list — fetch it directly
+      getDoc(doc(db, 'bookings', openId)).then((snap) => {
+        if (snap.exists()) {
+          const b = { id: snap.id, ...snap.data() };
+          setDetailBooking(b);
+          setSelectedDate(b.date);
+        }
+      }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route?.params?.openBookingId, bookings]);
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const dotDates = useMemo(() => {
@@ -121,33 +250,6 @@ export default function ClientScheduleScreen() {
     );
   }, [t]);
 
-  const requestPayment = useCallback(async (booking) => {
-    Alert.alert(
-      t('clientSchedule.confirmPayment'),
-      t('clientSchedule.markAsPaidConfirm'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('clientSchedule.payNow'),
-          onPress: async () => {
-            setActing(true);
-            try {
-              await updateDoc(doc(db, 'bookings', booking.id), { paymentStatus: 'pending' });
-              setDetailBooking((prev) => prev?.id === booking.id
-                ? { ...prev, paymentStatus: 'pending' }
-                : prev,
-              );
-            } catch {
-              Alert.alert(t('common.error'), 'Could not update payment. Try again.');
-            } finally {
-              setActing(false);
-            }
-          },
-        },
-      ],
-    );
-  }, [t]);
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -177,6 +279,19 @@ export default function ClientScheduleScreen() {
       </LinearGradient>
 
       <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* Book a session CTA */}
+        <View style={s.bookCtaWrap}>
+          <TouchableOpacity style={s.bookCta} onPress={() => setShowBook(true)} activeOpacity={0.85}>
+            <LinearGradient colors={gradients.primary} style={s.bookCtaInner}>
+              <Ionicons name="add-circle-outline" size={18} color={colors.accentInk} />
+              <Text style={s.bookCtaText}>
+                {t('clientSchedule.bookSession')}
+                {openSlots.length > 0 ? ` · ${t('clientSchedule.slotsAvailable', { count: openSlots.length })}` : ''}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
 
         {/* Calendar */}
         <View style={s.calSection}>
@@ -291,6 +406,29 @@ export default function ClientScheduleScreen() {
                   />
                 </View>
 
+                {/* Workout Plan */}
+                {detailBooking.workoutPlan?.pdfUrl ? (
+                  <TouchableOpacity
+                    style={s.workoutPlanCard}
+                    onPress={() => Linking.openURL(detailBooking.workoutPlan.pdfUrl).catch(() => {})}
+                    activeOpacity={0.8}
+                  >
+                    <View style={s.workoutPlanIcon}>
+                      <Ionicons name="document-text-outline" size={22} color={colors.accent} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.workoutPlanLabel}>{t('schedule.workoutPlan')}</Text>
+                      <Text style={s.workoutPlanTitle} numberOfLines={1}>
+                        {detailBooking.workoutPlan.pdfTitle || 'Workout Plan'}
+                      </Text>
+                    </View>
+                    <View style={s.workoutPlanOpenBtn}>
+                      <Text style={s.workoutPlanOpenText}>{t('schedule.openWorkout')}</Text>
+                      <Ionicons name="open-outline" size={13} color={colors.accent} />
+                    </View>
+                  </TouchableOpacity>
+                ) : null}
+
                 {/* Actions */}
                 <View style={s.detailActions}>
                   {detailBooking.status === 'pending_confirmation' && (
@@ -323,24 +461,6 @@ export default function ClientScheduleScreen() {
                     </>
                   )}
 
-                  {detailBooking.status === 'confirmed' && detailBooking.paymentStatus === 'unpaid' && (
-                    <TouchableOpacity
-                      style={[s.payBtn, acting && s.btnDisabled]}
-                      onPress={() => requestPayment(detailBooking)}
-                      disabled={acting}
-                      activeOpacity={0.85}
-                    >
-                      <LinearGradient colors={['#10B981', '#059669']} style={s.confirmBtnGrad}>
-                        {acting
-                          ? <ActivityIndicator color="#fff" size="small" />
-                          : <>
-                              <Ionicons name="card-outline" size={18} color="#fff" />
-                              <Text style={s.confirmBtnText}>{t('clientSchedule.payNow')}</Text>
-                            </>
-                        }
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  )}
                 </View>
 
                 <TouchableOpacity style={s.closeBtn} onPress={() => setDetailBooking(null)}>
@@ -351,6 +471,54 @@ export default function ClientScheduleScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* ── Book a session Modal ───────────────────────────────────────────── */}
+      <Modal visible={showBook} transparent animationType="slide" onRequestClose={() => setShowBook(false)}>
+        <View style={s.overlay}>
+          <View style={s.bookSheet}>
+            <View style={s.modalHandle} />
+            <Text style={s.bookSheetTitle}>{t('clientSchedule.availableSlots')}</Text>
+            <Text style={s.bookSheetSub}>{t('clientSchedule.availableSlotsSub')}</Text>
+
+            {openSlots.length === 0 ? (
+              <View style={s.bookEmpty}>
+                <Ionicons name="calendar-outline" size={36} color={colors.textMuted} />
+                <Text style={s.bookEmptyText}>{t('clientSchedule.noSlots')}</Text>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                {openSlots.map((slot) => (
+                  <TouchableOpacity
+                    key={slot.id}
+                    style={s.slotCard}
+                    onPress={() => requestSlot(slot)}
+                    disabled={!!bookingSlotId}
+                    activeOpacity={0.8}
+                  >
+                    <View style={s.slotCardIcon}>
+                      <Ionicons name="time-outline" size={20} color={colors.accent} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.slotCardDate}>{slot.date}</Text>
+                      <Text style={s.slotCardTime}>
+                        {slot.time} · {slot.duration} min
+                        {slot.location && slot.location !== t('schedule.notSpecified') ? ` · ${slot.location}` : ''}
+                      </Text>
+                    </View>
+                    {bookingSlotId === slot.id
+                      ? <ActivityIndicator size="small" color={colors.accent} />
+                      : <Ionicons name={isRTL ? 'chevron-back' : 'chevron-forward'} size={16} color={colors.textMuted} />}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity style={s.closeBtn} onPress={() => setShowBook(false)} disabled={!!bookingSlotId}>
+              <Text style={s.closeBtnText}>{t('common.close')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -359,6 +527,7 @@ export default function ClientScheduleScreen() {
 
 function ClientSessionCard({ booking, onPress, t }) {
   const STATUS_CONFIG = {
+    requested:            { color: '#8B5CF6', icon: 'hourglass-outline' },
     pending_confirmation: { color: '#F59E0B', icon: 'time-outline' },
     confirmed:            { color: '#10B981', icon: 'checkmark-circle-outline' },
     cancelled:            { color: '#EF4444', icon: 'close-circle-outline' },
@@ -394,6 +563,12 @@ function ClientSessionCard({ booking, onPress, t }) {
             <Text style={s.pendingTagText}>{t('clientSchedule.tapToConfirm')}</Text>
           </View>
         )}
+        {booking.workoutPlan?.pdfUrl ? (
+          <View style={s.workoutTag}>
+            <Ionicons name="document-text-outline" size={11} color={colors.accent} />
+            <Text style={s.workoutTagText}>{t('schedule.workoutPlan')}</Text>
+          </View>
+        ) : null}
       </View>
       <Ionicons name="chevron-forward" size={16} color={colors.textMuted} style={{ marginRight: 12, alignSelf: 'center' }} />
     </TouchableOpacity>
@@ -472,6 +647,34 @@ const s = StyleSheet.create({
   pendingTag: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   pendingTagText: { fontFamily: 'Sora-SemiBold', fontSize: 11, color: '#F59E0B' },
 
+  // Book a session CTA
+  bookCtaWrap: { paddingHorizontal: 16, paddingTop: 14 },
+  bookCta: { borderRadius: 14, overflow: 'hidden' },
+  bookCtaInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13 },
+  bookCtaText: { fontFamily: 'Sora-Bold', fontSize: 14, color: colors.accentInk },
+
+  // Book sheet
+  bookSheet: {
+    backgroundColor: dark.bg1, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 32, maxHeight: '85%',
+  },
+  bookSheetTitle: { fontFamily: 'Sora-Bold', fontSize: 20, color: colors.textPrimary, textAlign: 'center' },
+  bookSheetSub: { fontFamily: 'Sora-Regular', fontSize: 12.5, color: colors.textMuted, textAlign: 'center', marginTop: 4, marginBottom: 16 },
+  bookEmpty: { alignItems: 'center', paddingVertical: 36, gap: 10 },
+  bookEmptyText: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textMuted },
+  slotCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: dark.bg2, borderRadius: 14,
+    borderWidth: 1, borderColor: dark.line,
+    padding: 14, marginBottom: 10,
+  },
+  slotCardIcon: {
+    width: 40, height: 40, borderRadius: 11,
+    backgroundColor: colors.accent + '15', alignItems: 'center', justifyContent: 'center',
+  },
+  slotCardDate: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },
+  slotCardTime: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, marginTop: 2 },
+
   // Detail modal
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalHandle: {
@@ -506,7 +709,6 @@ const s = StyleSheet.create({
 
   detailActions: { gap: 10, marginBottom: 12 },
   confirmBtn: { borderRadius: 14, overflow: 'hidden' },
-  payBtn: { borderRadius: 14, overflow: 'hidden' },
   confirmBtnGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14 },
   confirmBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 15, color: '#fff' },
   declineBtn: {
@@ -520,4 +722,24 @@ const s = StyleSheet.create({
 
   closeBtn: { alignItems: 'center', paddingVertical: 12 },
   closeBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textMuted },
+
+  // Workout plan card (detail modal)
+  workoutPlanCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: colors.accent + '10', borderRadius: 14,
+    borderWidth: 1, borderColor: colors.accent + '40',
+    paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16,
+  },
+  workoutPlanIcon: {
+    width: 40, height: 40, borderRadius: 10,
+    backgroundColor: colors.accent + '20', alignItems: 'center', justifyContent: 'center',
+  },
+  workoutPlanLabel: { fontFamily: 'Sora-Regular', fontSize: 10.5, color: colors.accent, textTransform: 'uppercase', letterSpacing: 0.8 },
+  workoutPlanTitle: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary, marginTop: 2 },
+  workoutPlanOpenBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  workoutPlanOpenText: { fontFamily: 'Sora-SemiBold', fontSize: 12, color: colors.accent },
+
+  // Workout tag on session card
+  workoutTag: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  workoutTagText: { fontFamily: 'Sora-Regular', fontSize: 11, color: colors.accent },
 });

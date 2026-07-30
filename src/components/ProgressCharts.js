@@ -326,6 +326,78 @@ export function WeightLineChart({ metrics = [] }) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// 5. ExerciseHistoryChart
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Dot chart showing top-set weight progression for a single exercise.
+ * Clones WeightLineChart's rendering, keyed on progress[].exercises[] instead
+ * of a separate metrics collection.
+ * @param {Array}  entries      – full progress[] docs for a client
+ * @param {string} exerciseName – exact exercise name to filter on
+ */
+export function ExerciseHistoryChart({ entries = [], exerciseName }) {
+  const points = entries
+    .flatMap((e) => (e.exercises ?? []).map((ex) => ({ ...ex, date: e.date })))
+    .filter((ex) => ex.name === exerciseName && ex.sets?.length)
+    .map((ex) => ({
+      date: ex.date,
+      weight: Math.max(...ex.sets.map((s) => s.weight || 0)),
+    }))
+    .filter((p) => p.weight > 0)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-10);
+
+  if (points.length < 2) {
+    return (
+      <View style={s.card}>
+        <ChartHeader title={exerciseName} subtitle="Log at least 2 sessions for a trend" />
+        <View style={s.weightEmpty}>
+          <Text style={s.weightEmptyIcon}>💪</Text>
+          <Text style={s.weightEmptyText}>Not enough data yet</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const weights = points.map((p) => p.weight);
+  const minW = Math.min(...weights);
+  const maxW = Math.max(...weights);
+  const range = Math.max(maxW - minW, 1);
+  const CHART_H = 80;
+  const latest = points[points.length - 1];
+  const first = points[0];
+  const diff = parseFloat((latest.weight - first.weight).toFixed(1));
+  const diffSign = diff > 0 ? '+' : '';
+
+  return (
+    <View style={s.card}>
+      <ChartHeader
+        title={exerciseName}
+        subtitle={`${latest.weight}kg now · ${diffSign}${diff}kg`}
+      />
+      <View style={[s.weightChart, { height: CHART_H + 24 }]}>
+        {points.map((p, i) => {
+          const xPct = (i / (points.length - 1)) * 94;
+          const yPx = ((maxW - p.weight) / range) * CHART_H;
+          const isLast = i === points.length - 1;
+          return (
+            <View key={i} style={[s.weightDotWrap, { left: `${xPct}%`, top: yPx }]}>
+              <View style={[s.weightDot, isLast && s.weightDotLatest]} />
+              {isLast && <Text style={s.weightDotLabel}>{p.weight}</Text>}
+            </View>
+          );
+        })}
+      </View>
+      <View style={s.weightMinMax}>
+        <Text style={s.weightMinMaxText}>{minW}kg min</Text>
+        <Text style={s.weightMinMaxText}>{maxW}kg max</Text>
+      </View>
+    </View>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Shared sub-component
 // ══════════════════════════════════════════════════════════════════════════════
 

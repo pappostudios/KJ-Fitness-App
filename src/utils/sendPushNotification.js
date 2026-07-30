@@ -24,7 +24,7 @@ export async function sendPushNotification(token, title, body, data = {}) {
     await fetch(EXPO_PUSH_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: token, title, body, data, sound: 'default' }),
+      body: JSON.stringify({ to: token, title, body, data, sound: 'default', channelId: 'default' }),
     });
   } catch (err) {
     console.warn('sendPushNotification error:', err.message);
@@ -44,7 +44,7 @@ export async function sendPushNotificationToMany(tokens, title, body, data = {})
   );
   if (valid.length === 0) return;
   try {
-    const messages = valid.map((to) => ({ to, title, body, data, sound: 'default' }));
+    const messages = valid.map((to) => ({ to, title, body, data, sound: 'default', channelId: 'default' }));
     await fetch(EXPO_PUSH_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

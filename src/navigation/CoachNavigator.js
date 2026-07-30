@@ -46,9 +46,14 @@ export default function CoachNavigator() {
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: styles.tabBar,
+        tabBarItemStyle: styles.tabItem,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.tabInactive,
-        tabBarLabelStyle: styles.tabLabel,
+        tabBarLabel: ({ focused, color }) => (
+          <Text style={[styles.tabLabel, focused && styles.tabLabelActive, { color }]}>
+            {route.name.toUpperCase()}
+          </Text>
+        ),
         tabBarIcon: ({ focused, color }) => {
           const tab = TABS.find((t) => t.name === route.name);
           const iconName = focused ? tab?.iconFocused : tab?.icon;
@@ -58,8 +63,8 @@ export default function CoachNavigator() {
           const badgeCount = route.name === 'Requests' ? pendingCount : unreadMessages;
 
           return (
-            <View style={styles.iconWrap}>
-              <Ionicons name={iconName || 'ellipse-outline'} size={22} color={color} />
+            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+              <Ionicons name={iconName || 'ellipse-outline'} size={26} color={color} />
               {showBadge && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
@@ -84,23 +89,35 @@ const styles = StyleSheet.create({
     backgroundColor: dark.bg1,
     borderTopColor: dark.line,
     borderTopWidth: 1,
-    paddingTop: 8,
-    height: 70,
+    paddingTop: 10,
+    height: 76,
     paddingBottom: 12,
   },
-  tabLabel: {
-    fontFamily: 'Sora-SemiBold',
-    fontSize: 10,
-    marginTop: 2,
+  tabItem: {
+    paddingTop: 2,
   },
-  iconWrap: {
-    position: 'relative',
+  tabLabel: {
+    fontFamily: 'Sora-Bold',
+    fontSize: 9.5,
+    letterSpacing: 0.4,
+    marginTop: 4,
+  },
+  tabLabelActive: {
+    fontFamily: 'Sora-ExtraBold',
+  },
+  iconPill: {
+    width: 56,
+    height: 30,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconPillActive: {
+    backgroundColor: colors.primarySoft,
+  },
   badge: {
     position: 'absolute',
-    top: -4, right: -10,
+    top: -2, right: 6,
     backgroundColor: colors.error,
     borderRadius: 8,
     minWidth: 16, height: 16,

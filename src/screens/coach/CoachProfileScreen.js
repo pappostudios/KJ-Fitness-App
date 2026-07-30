@@ -265,8 +265,8 @@ const styles = StyleSheet.create({
   avatarText: { color: '#fff', fontFamily: 'Sora-Bold' },
   coachBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: 'rgba(229,57,53,0.12)', borderWidth: 1,
-    borderColor: 'rgba(229,57,53,0.35)', borderRadius: 999,
+    backgroundColor: 'rgba(21, 194, 203,0.12)', borderWidth: 1,
+    borderColor: 'rgba(21, 194, 203,0.35)', borderRadius: 999,
     paddingHorizontal: 10, paddingVertical: 4,
   },
   coachBadgeText: { fontFamily: 'Sora-SemiBold', fontSize: 10, letterSpacing: 1.5, color: colors.accent },
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   linkRow: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 },
   linkIconWrap: {
     width: 34, height: 34, borderRadius: 10,
-    backgroundColor: 'rgba(229,57,53,0.10)', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(21, 194, 203,0.10)', alignItems: 'center', justifyContent: 'center',
   },
   linkText: { flex: 1, fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },
 
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     backgroundColor: dark.bg2, borderWidth: 1, borderColor: dark.line,
     alignItems: 'center',
   },
-  langBtnActive: { backgroundColor: 'rgba(229,57,53,0.15)', borderColor: colors.accent },
+  langBtnActive: { backgroundColor: 'rgba(21, 194, 203,0.15)', borderColor: colors.accent },
   langBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textMuted },
   langBtnTextActive: { color: colors.accent },
 

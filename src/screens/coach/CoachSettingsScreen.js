@@ -230,8 +230,8 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   cardIconWrap: {
     width: 40, height: 40, borderRadius: 12,
-    backgroundColor: 'rgba(229,57,53,0.12)', borderWidth: 1,
-    borderColor: 'rgba(229,57,53,0.25)', justifyContent: 'center', alignItems: 'center',
+    backgroundColor: 'rgba(21, 194, 203,0.12)', borderWidth: 1,
+    borderColor: 'rgba(21, 194, 203,0.25)', justifyContent: 'center', alignItems: 'center',
   },
   cardTitle: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary },
   cardSub: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, marginTop: 2 },
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   langBtnActive: {
-    backgroundColor: 'rgba(229,57,53,0.15)', borderColor: colors.accent,
+    backgroundColor: 'rgba(21, 194, 203,0.15)', borderColor: colors.accent,
   },
   langBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textMuted },
   langBtnTextActive: { color: colors.accent },
@@ -259,8 +259,8 @@ const styles = StyleSheet.create({
 
   infoBox: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
-    backgroundColor: 'rgba(229,57,53,0.08)', borderRadius: 14,
-    borderWidth: 1, borderColor: 'rgba(229,57,53,0.2)', padding: 14,
+    backgroundColor: 'rgba(21, 194, 203,0.08)', borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(21, 194, 203,0.2)', padding: 14,
   },
   infoText: { fontFamily: 'Sora-Regular', fontSize: 12.5, color: colors.textSecondary, flex: 1, lineHeight: 19 },
 

@@ -12,6 +12,13 @@
 // All accents share oklch(0.68 0.20 <hue>) — same chroma + lightness,
 // so they stay harmonious when swapped via the Tweaks panel.
 export const ACCENT_PALETTES = {
+  // KJ Fitness brand teal — matches the logo
+  teal: {
+    accent:     '#15C2CB', // KJ logo teal
+    accentSoft: 'rgba(21, 194, 203, 0.16)',
+    accentInk:  '#04282B', // deep teal-black — text/icon on teal bg
+    accentDark: '#0E9AA1',
+  },
   red: {
     accent:     '#E53935', // oklch(0.68 0.20  25)
     accentSoft: 'rgba(229, 57, 53, 0.16)',
@@ -41,27 +48,27 @@ export const ACCENT_PALETTES = {
 // ─── Dark theme (default) ─────────────────────────────────────────────────────
 // Warm near-black surface stack — no pure black (oklch hue ~35)
 export const dark = {
-  // Surfaces
-  bg0:      '#1C1412', // oklch(0.15 0.012 35) — screen background
-  bg1:      '#2A1E1A', // oklch(0.21 0.012 35) — cards
-  bg2:      '#342624', // oklch(0.26 0.014 35) — elevated cards
-  bg3:      '#3E2F2B', // oklch(0.31 0.014 35) — inputs / pressed states
+  // Surfaces — cool slate stack tuned for the KJ teal accent
+  bg0:      '#0D1517', // screen background (cool near-black)
+  bg1:      '#152023', // cards
+  bg2:      '#1D2B2E', // elevated cards
+  bg3:      '#26373B', // inputs / pressed states
 
   // Borders
-  line:     '#463530', // oklch(0.34 0.012 40)
-  lineSoft: 'rgba(70, 53, 48, 0.5)',
+  line:     '#2E4348', // cool slate border
+  lineSoft: 'rgba(46, 67, 72, 0.55)',
 
   // Text
-  inkHi:    '#F9F7F4', // oklch(0.98 0.006 70) — primary text
-  inkMd:    '#C5BEB6', // oklch(0.78 0.01  50) — secondary text
-  inkLo:    '#948E86', // oklch(0.58 0.012 45) — muted / disabled
+  inkHi:    '#F4F8F8', // primary text (cool white)
+  inkMd:    '#B4C2C3', // secondary text
+  inkLo:    '#7E8E90', // muted / disabled
 
   // Status
-  ok:       '#4BC878', // oklch(0.78 0.16 145) — success / adherence
-  warn:     '#CBB02A', // oklch(0.78 0.16  75) — warning / overdue
+  ok:       '#4BC878', // success / adherence
+  warn:     '#CBB02A', // warning / overdue
 
-  // Accent (red default)
-  ...ACCENT_PALETTES.red,
+  // Accent (KJ teal)
+  ...ACCENT_PALETTES.teal,
 };
 
 // ─── Light theme ─────────────────────────────────────────────────────────────
@@ -86,28 +93,28 @@ export const light = {
   ok:       '#1E9E50',
   warn:     '#A07800',
 
-  // Accent (red default — lighter alpha for light bg)
-  ...ACCENT_PALETTES.red,
-  accentSoft: 'rgba(229, 57, 53, 0.10)',
+  // Accent (KJ teal — lighter alpha for light bg)
+  ...ACCENT_PALETTES.teal,
+  accentSoft: 'rgba(21, 194, 203, 0.12)',
   accentInk:  '#FFFFFF',
 };
 
 // ─── Gradients ────────────────────────────────────────────────────────────────
 export const gradients = {
   // Login hero overlay (bottom fade to bg)
-  hero: ['transparent', 'rgba(28, 20, 18, 0.75)', '#1C1412'],
+  hero: ['transparent', 'rgba(13, 21, 23, 0.75)', '#0D1517'],
   // Accent gradient — KJ logo badge, primary buttons
-  primary: ['#E53935', '#C62828'],
+  primary: ['#1AC8D1', '#0E9AA1'],
   // Avatar gradient
-  avatar: ['#E53935', '#C62828'],
+  avatar: ['#1AC8D1', '#0E9AA1'],
   // Accent card tint (top fade)
-  accentCard: ['rgba(229, 57, 53, 0.16)', 'transparent'],
+  accentCard: ['rgba(21, 194, 203, 0.16)', 'transparent'],
   // Stage background glow (from prototype .stage)
   stageDark: [
-    'rgba(34, 26, 24, 0.85)',
+    'rgba(21, 32, 35, 0.85)',
     'transparent',
-    'rgba(32, 26, 25, 0.4)',
-    'rgba(23, 20, 18, 1)',
+    'rgba(20, 30, 33, 0.4)',
+    'rgba(13, 21, 23, 1)',
   ],
 };
 
@@ -164,7 +171,7 @@ export const colors = {
   // Utility
   transparent:    'transparent',
   overlay:        'rgba(0, 0, 0, 0.6)',
-  scrim:          'rgba(28, 20, 18, 0.85)',
+  scrim:          'rgba(13, 21, 23, 0.85)',
   white:          '#FFFFFF',
 
   // ─── Aliases used by coach screens ──────────────────────────────────────────

@@ -2,6 +2,7 @@
 # (reduces upload size and avoids uploading stale local build artifacts)
 
 android/app/build/
+android/app/.cxx/
 android/build/
 android/.gradle/
 android/.idea/

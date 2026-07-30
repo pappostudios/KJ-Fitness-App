@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import {
+  collection, query, where, onSnapshot,
+} from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { colors, gradients, dark } from '../../theme/colors';
 import { useLanguage } from '../../context/LanguageContext';
@@ -15,19 +17,73 @@ function Eyebrow({ children, style }) {
 }
 
 export default function ConversationsScreen({ navigation }) {
-  const [conversations, setConversations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [conversations, setConversations] = useState({});
+  const [clients, setClients] = useState([]);
+  const [convsLoaded, setConvsLoaded] = useState(false);
+  const [clientsLoaded, setClientsLoaded] = useState(false);
   const { t, isRTL } = useLanguage();
 
+  // Listen to all conversation docs
   useEffect(() => {
-    const q = query(collection(db, 'conversations'), orderBy('lastMessageAt', 'desc'));
+    const q = query(collection(db, 'conversations'));
     return onSnapshot(q, (snap) => {
-      setConversations(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setLoading(false);
+      const map = {};
+      snap.docs.forEach((d) => { map[d.id] = { id: d.id, ...d.data() }; });
+      setConversations(map);
+      setConvsLoaded(true);
     });
   }, []);
 
-  const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadByCoach ?? 0), 0);
+  // Listen to all approved clients
+  useEffect(() => {
+    const q = query(
+      collection(db, 'users'),
+      where('role', '==', 'client'),
+      where('status', '==', 'approved'),
+    );
+    return onSnapshot(q, (snap) => {
+      setClients(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setClientsLoaded(true);
+    });
+  }, []);
+
+  const loading = !convsLoaded || !clientsLoaded;
+
+  // Merge: every approved client, enriched with conversation data where it exists
+  const mergedList = useMemo(() => {
+    const withConv = [];
+    const withoutConv = [];
+
+    clients.forEach((client) => {
+      const conv = conversations[client.id];
+      if (conv) {
+        withConv.push({
+          clientId: client.id,
+          clientName: client.name || 'Client',
+          lastMessage: conv.lastMessage ?? null,
+          lastMessageAt: conv.lastMessageAt ?? null,
+          unreadByCoach: conv.unreadByCoach ?? 0,
+        });
+      } else {
+        withoutConv.push({
+          clientId: client.id,
+          clientName: client.name || 'Client',
+          lastMessage: null,
+          lastMessageAt: null,
+          unreadByCoach: 0,
+        });
+      }
+    });
+
+    // Sort by most recent message first
+    withConv.sort((a, b) => (b.lastMessageAt?.seconds ?? 0) - (a.lastMessageAt?.seconds ?? 0));
+    // Sort no-conversation clients alphabetically
+    withoutConv.sort((a, b) => (a.clientName ?? '').localeCompare(b.clientName ?? ''));
+
+    return [...withConv, ...withoutConv];
+  }, [clients, conversations]);
+
+  const totalUnread = mergedList.reduce((sum, c) => sum + (c.unreadByCoach ?? 0), 0);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -47,7 +103,7 @@ export default function ConversationsScreen({ navigation }) {
         <Text style={styles.headerSub}>
           {totalUnread > 0
             ? t('conversations.unread', { count: totalUnread })
-            : t('conversations.count', { count: conversations.length })}
+            : t('conversations.count', { count: mergedList.length })}
         </Text>
       </View>
 
@@ -55,7 +111,7 @@ export default function ConversationsScreen({ navigation }) {
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} size="large" />
         </View>
-      ) : conversations.length === 0 ? (
+      ) : mergedList.length === 0 ? (
         <View style={styles.center}>
           <View style={styles.emptyIcon}>
             <Ionicons name="chatbubbles-outline" size={28} color={colors.textMuted} />
@@ -65,16 +121,17 @@ export default function ConversationsScreen({ navigation }) {
         </View>
       ) : (
         <FlatList
-          data={conversations}
-          keyExtractor={(item) => item.id}
+          data={mergedList}
+          keyExtractor={(item) => item.clientId}
           renderItem={({ item }) => (
             <ConversationRow
-              conversation={item}
+              item={item}
               isRTL={isRTL}
+              t={t}
               onPress={() =>
                 navigation.navigate('CoachChat', {
                   clientId: item.clientId,
-                  clientName: item.clientName ?? 'Client',
+                  clientName: item.clientName,
                 })
               }
             />
@@ -88,9 +145,10 @@ export default function ConversationsScreen({ navigation }) {
   );
 }
 
-function ConversationRow({ conversation, onPress, isRTL }) {
-  const { clientName, lastMessage, lastMessageAt, unreadByCoach } = conversation;
+function ConversationRow({ item, onPress, isRTL, t }) {
+  const { clientName, lastMessage, lastMessageAt, unreadByCoach } = item;
   const hasUnread = (unreadByCoach ?? 0) > 0;
+  const hasConversation = lastMessage != null;
   const timeStr = lastMessageAt?.toDate ? formatTime(lastMessageAt.toDate()) : '';
   const initials = getInitials(clientName ?? '?');
 
@@ -98,10 +156,7 @@ function ConversationRow({ conversation, onPress, isRTL }) {
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
       {/* Avatar */}
       {hasUnread ? (
-        <LinearGradient
-          colors={gradients.avatar}
-          style={styles.rowAvatar}
-        >
+        <LinearGradient colors={gradients.avatar} style={styles.rowAvatar}>
           <Text style={styles.rowAvatarText}>{initials}</Text>
         </LinearGradient>
       ) : (
@@ -122,10 +177,14 @@ function ConversationRow({ conversation, onPress, isRTL }) {
         </View>
         <View style={styles.rowBottomLine}>
           <Text
-            style={[styles.rowPreview, hasUnread && styles.rowPreviewUnread]}
+            style={[
+              styles.rowPreview,
+              hasUnread && styles.rowPreviewUnread,
+              !hasConversation && styles.rowPreviewNew,
+            ]}
             numberOfLines={1}
           >
-            {lastMessage ?? '...'}
+            {hasConversation ? lastMessage : t('conversations.tapToStart')}
           </Text>
           {hasUnread && (
             <View style={styles.countBadge}>
@@ -203,6 +262,7 @@ const styles = StyleSheet.create({
   rowBottomLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   rowPreview: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, flex: 1 },
   rowPreviewUnread: { color: colors.textSecondary, fontFamily: 'Sora-SemiBold' },
+  rowPreviewNew: { fontStyle: 'italic' },
   countBadge: {
     backgroundColor: colors.accent, borderRadius: 10,
     minWidth: 20, height: 20, alignItems: 'center',

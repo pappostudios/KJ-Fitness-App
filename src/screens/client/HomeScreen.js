@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StatusBar,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -65,34 +66,6 @@ function Eyebrow({ children, accent, style }) {
   );
 }
 
-// Tiny inline sparkline using SVG-like dots approach
-function Sparkline({ data = [], width = 80, height = 28 }) {
-  if (!data.length) return null;
-  const min = Math.min(...data);
-  const max = Math.max(...data);
-  const range = max - min || 1;
-  const step = width / Math.max(1, data.length - 1);
-  // Render as a series of dots connected by the layout
-  return (
-    <View style={{ width, height, flexDirection: 'row', alignItems: 'flex-end', gap: 3 }}>
-      {data.map((v, i) => {
-        const barH = Math.max(2, ((v - min) / range) * height);
-        const isLast = i === data.length - 1;
-        return (
-          <View
-            key={i}
-            style={{
-              width: 4,
-              height: barH,
-              borderRadius: 2,
-              backgroundColor: isLast ? colors.accent : `rgba(229,57,53,0.35)`,
-            }}
-          />
-        );
-      })}
-    </View>
-  );
-}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -101,13 +74,46 @@ export default function HomeScreen({ navigation }) {
   const { t, isRTL } = useLanguage();
 
   const displayName = profile?.name || user?.displayName || '';
-  const firstName = displayName.split(' ')[0] || 'there';
+  const firstName = displayName.split(' ')[0] || t('clientHome.friend');
   const initials = getInitials(displayName);
 
-  // Firestore: next upcoming booking
+  // Firestore: next upcoming confirmed booking
   const [nextBooking, setNextBooking] = useState(null);
-  // Firestore: today's plan (stub — real data comes from weeklyPlans collection)
-  const [todayPlan, setTodayPlan] = useState(null);
+  // Firestore: this client's active training program
+  const [activeProgram, setActiveProgram] = useState(null);
+  const [expandedWorkout, setExpandedWorkout] = useState(null);
+  // Firestore: this week's logged progress (for the weekly-target pill)
+  const [weekEntries, setWeekEntries] = useState([]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'trainingPrograms'),
+      where('clientId', '==', user.uid),
+      where('isActive', '==', true),
+      limit(1),
+    );
+    return onSnapshot(q, (snap) => {
+      setActiveProgram(snap.docs[0] ? { id: snap.docs[0].id, ...snap.docs[0].data() } : null);
+    }, (err) => {
+      console.warn('[HomeScreen] activeProgram snapshot error:', err.code, err.message);
+    });
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay());
+    const weekStartISO = toISO(d);
+    const q = query(
+      collection(db, 'progress'),
+      where('clientId', '==', user.uid),
+      where('date', '>=', weekStartISO),
+    );
+    return onSnapshot(q, (snap) => {
+      setWeekEntries(snap.docs.map((d) => d.data()));
+    });
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -139,8 +145,25 @@ export default function HomeScreen({ navigation }) {
     };
   });
 
-  // PRs — loaded from Firestore (empty until real data is entered)
-  const PRS = [];
+  // Weekly adherence: count logged sessions this week against non-bonus workouts
+  const nonBonusKeys = new Set((activeProgram?.workouts ?? []).filter((w) => !w.isBonus).map((w) => w.key));
+  const sessionsThisWeek = weekEntries.filter((e) => e.programId === activeProgram?.id && nonBonusKeys.has(e.workoutKey)).length;
+  const currentProgramWeek = activeProgram
+    ? Math.min(
+        Math.max(Math.floor((new Date() - new Date(activeProgram.startDate + 'T00:00:00')) / 86400000 / 7) + 1, 1),
+        activeProgram.weeks || 1,
+      )
+    : null;
+
+  // Today's session vs. an upcoming (future) one
+  const todayISOStr = toISO(today);
+  const todaysBooking = nextBooking && nextBooking.date === todayISOStr ? nextBooking : null;
+  const upcomingBooking = nextBooking && nextBooking.date !== todayISOStr ? nextBooking : null;
+
+  function fmtSessionDate(iso) {
+    const d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -175,58 +198,109 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* ── Program strip ──────────────────────────────────────────────── */}
-        {profile?.program && (
+        {activeProgram && (
           <View style={styles.programStrip}>
             <View style={styles.programMeta}>
-              <Text style={styles.programLabel}>{profile.program}</Text>
+              <Text style={styles.programLabel}>{activeProgram.title}</Text>
               <Text style={styles.programWeek}>
-                {t('clientHome.week', { current: profile.currentWeek ?? 1, total: profile.totalWeeks ?? 12 })}
+                {t('trainingProgram.weekOf', { current: currentProgramWeek, total: activeProgram.weeks })}
               </Text>
             </View>
             <View style={styles.progressBarBg}>
               <View
                 style={[
                   styles.progressBarFill,
-                  { width: `${((profile.currentWeek ?? 1) / (profile.totalWeeks ?? 12)) * 100}%` },
+                  { width: `${(currentProgramWeek / (activeProgram.weeks || 1)) * 100}%` },
                 ]}
               />
             </View>
+
+            {activeProgram.targetSessionsPerWeek > 0 && (
+              <View style={styles.weeklyTargetRow}>
+                <Text style={styles.weeklyTargetText}>
+                  {t('trainingProgram.sessionsThisWeek', {
+                    done: sessionsThisWeek,
+                    target: activeProgram.targetSessionsPerWeek,
+                  })}
+                </Text>
+                <View style={styles.weeklyTargetDots}>
+                  {Array.from({ length: activeProgram.targetSessionsPerWeek }).map((_, i) => (
+                    <View key={i} style={[styles.targetDot, i < sessionsThisWeek && styles.targetDotFilled]} />
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View style={styles.workoutBadgeScrollRow}>
+              {(activeProgram.workouts ?? []).map((w, wi) => {
+                const isOpen = expandedWorkout === w.key;
+                return (
+                  <TouchableOpacity
+                    key={w.key}
+                    style={[styles.workoutBadge, isOpen && styles.workoutBadgeOpen]}
+                    onPress={() => setExpandedWorkout(isOpen ? null : w.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.workoutBadgeText}>{w.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {expandedWorkout && (() => {
+              const w = activeProgram.workouts.find((wk) => wk.key === expandedWorkout);
+              if (!w) return null;
+              return (
+                <View style={styles.workoutExpandCard}>
+                  {(w.exercises ?? []).map((ex) => (
+                    <View key={ex.id} style={styles.workoutExpandRow}>
+                      <Text style={styles.workoutExpandName}>{ex.name}</Text>
+                      <Text style={styles.workoutExpandMeta}>
+                        {ex.targetSets}×{ex.targetReps}{ex.targetWeight ? ` @ ${ex.targetWeight}` : ''}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
           </View>
         )}
 
-        {/* ── Today's session — hero card ────────────────────────────────── */}
+        {/* ── Today — hero card ──────────────────────────────────────────── */}
         <View style={styles.sectionPad}>
-          {todayPlan ? (
+          {todaysBooking ? (
+            /* A confirmed session is scheduled for today */
             <View style={styles.heroCard}>
-              {/* Cover image placeholder */}
               <View style={styles.heroCardCover}>
-                <LinearGradient
-                  colors={['rgba(229,57,53,0.12)', 'transparent']}
-                  style={StyleSheet.absoluteFillObject}
-                />
+                <LinearGradient colors={['rgba(21, 194, 203,0.12)', 'transparent']} style={StyleSheet.absoluteFillObject} />
+                <Ionicons name="barbell" size={40} color="rgba(21,194,203,0.4)" />
               </View>
-              {/* Card body */}
               <View style={styles.heroCardBody}>
-                <Eyebrow accent>
-                  {t('clientHome.today')} · {DAYS_SHORT[today.getDay()].toUpperCase()}
-                </Eyebrow>
-                <Text style={styles.sessionTitle}>{todayPlan.label}</Text>
-                <Text style={styles.sessionFocus}>{todayPlan.focus}</Text>
+                <Eyebrow accent>{t('clientHome.today')} · {DAYS_SHORT[today.getDay()].toUpperCase()}</Eyebrow>
+                <Text style={styles.sessionTitle}>{t('clientHome.sessionWithCoach')}</Text>
                 <View style={styles.sessionMeta}>
-                  {todayPlan.exerciseCount != null && (
+                  <View style={styles.sessionMetaItem}>
+                    <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+                    <Text style={styles.sessionMetaText}>{todaysBooking.time} · {todaysBooking.duration} min</Text>
+                  </View>
+                  {todaysBooking.location && todaysBooking.location !== t('schedule.notSpecified') && (
                     <View style={styles.sessionMetaItem}>
-                      <Ionicons name="barbell-outline" size={14} color={colors.textMuted} />
-                      <Text style={styles.sessionMetaText}>{t('clientHome.exercises', { count: todayPlan.exerciseCount })}</Text>
-                    </View>
-                  )}
-                  {todayPlan.estMin != null && (
-                    <View style={styles.sessionMetaItem}>
-                      <Ionicons name="time-outline" size={14} color={colors.textMuted} />
-                      <Text style={styles.sessionMetaText}>{t('clientHome.estMin', { min: todayPlan.estMin })}</Text>
+                      <Ionicons name="location-outline" size={14} color={colors.textMuted} />
+                      <Text style={styles.sessionMetaText} numberOfLines={1}>{todaysBooking.location}</Text>
                     </View>
                   )}
                 </View>
-                <TouchableOpacity style={styles.startBtn} activeOpacity={0.85}>
+                {todaysBooking.workoutPlan?.pdfUrl ? (
+                  <TouchableOpacity
+                    style={styles.heroPlanBtn}
+                    activeOpacity={0.8}
+                    onPress={() => Linking.openURL(todaysBooking.workoutPlan.pdfUrl).catch(() => {})}
+                  >
+                    <Ionicons name="document-text-outline" size={15} color={colors.accent} />
+                    <Text style={styles.heroPlanBtnText}>{t('schedule.openWorkout')}</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity style={styles.startBtn} activeOpacity={0.85} onPress={() => navigation.navigate('LogWorkout')}>
                   <LinearGradient colors={gradients.primary} style={styles.startBtnGradient}>
                     <Text style={styles.startBtnText}>{t('clientHome.startSession')}</Text>
                     <Ionicons name="chevron-forward" size={18} color={colors.accentInk} />
@@ -234,34 +308,69 @@ export default function HomeScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
             </View>
+          ) : activeProgram ? (
+            /* No session today, but an active program — prompt to train */
+            <View style={styles.heroCard}>
+              <View style={styles.heroCardBody}>
+                <Eyebrow accent>{t('clientHome.today')} · {DAYS_SHORT[today.getDay()].toUpperCase()}</Eyebrow>
+                <Text style={styles.sessionTitle}>{t('clientHome.todaysWorkout')}</Text>
+                <Text style={styles.sessionFocus}>{activeProgram.title}</Text>
+                {activeProgram.targetSessionsPerWeek > 0 && (
+                  <View style={styles.sessionMeta}>
+                    <View style={styles.sessionMetaItem}>
+                      <Ionicons name="flame-outline" size={14} color={colors.textMuted} />
+                      <Text style={styles.sessionMetaText}>
+                        {t('trainingProgram.sessionsThisWeek', { done: sessionsThisWeek, target: activeProgram.targetSessionsPerWeek })}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+                <TouchableOpacity style={styles.startBtn} activeOpacity={0.85} onPress={() => navigation.navigate('LogWorkout')}>
+                  <LinearGradient colors={gradients.primary} style={styles.startBtnGradient}>
+                    <Text style={styles.startBtnText}>{t('progress.logWorkout')}</Text>
+                    <Ionicons name="chevron-forward" size={18} color={colors.accentInk} />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
           ) : (
+            /* No session, no program */
             <View style={styles.emptyCard}>
               <Eyebrow style={{ marginBottom: 8 }}>{t('clientHome.today')} · {DAYS_SHORT[today.getDay()].toUpperCase()}</Eyebrow>
               <Ionicons name="barbell-outline" size={28} color={colors.textMuted} style={{ marginBottom: 10 }} />
               <Text style={styles.emptyCardTitle}>{t('clientHome.noSession')}</Text>
               <Text style={styles.emptyCardSub}>{t('clientHome.noSessionSub')}</Text>
+              <TouchableOpacity style={styles.logWorkoutBtn} activeOpacity={0.85} onPress={() => navigation.navigate('LogWorkout')}>
+                <LinearGradient colors={gradients.primary} style={styles.logWorkoutBtnInner}>
+                  <Ionicons name="add" size={16} color={colors.accentInk} />
+                  <Text style={styles.logWorkoutBtnText}>{t('progress.logWorkout')}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
           )}
         </View>
 
-        {/* ── Coach note ─────────────────────────────────────────────────── */}
-        {todayPlan?.coachNote ? (
+        {/* ── Next session line ──────────────────────────────────────────── */}
+        {upcomingBooking && (
           <View style={styles.sectionPad}>
-            <Eyebrow style={{ marginBottom: 10 }}>{t('clientHome.coachNotes')}</Eyebrow>
-            <View style={styles.card}>
-              <View style={styles.coachNoteRow}>
-                <Avatar initials="KJ" size={40} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.coachNoteText}>{todayPlan.coachNote}</Text>
-                  <TouchableOpacity style={styles.replyBtn} activeOpacity={0.75}>
-                    <Text style={styles.replyBtnText}>{t('clientHome.reply')}</Text>
-                    <Ionicons name="chatbubble-outline" size={13} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
+            <TouchableOpacity
+              style={styles.nextSessionCard}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate('Schedule', { openBookingId: upcomingBooking.id })}
+            >
+              <View style={styles.nextSessionIcon}>
+                <Ionicons name="calendar-outline" size={18} color={colors.accent} />
               </View>
-            </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.nextSessionLabel}>{t('clientHome.nextSession')}</Text>
+                <Text style={styles.nextSessionValue}>
+                  {fmtSessionDate(upcomingBooking.date)} · {upcomingBooking.time}
+                </Text>
+              </View>
+              <Ionicons name={isRTL ? 'chevron-back' : 'chevron-forward'} size={16} color={colors.textMuted} />
+            </TouchableOpacity>
           </View>
-        ) : null}
+        )}
 
         {/* ── Week strip ─────────────────────────────────────────────────── */}
         <View style={styles.sectionPad}>
@@ -290,48 +399,6 @@ export default function HomeScreen({ navigation }) {
               </View>
             ))}
           </View>
-        </View>
-
-        {/* ── Recent video feedback — shown only when real data exists ─── */}
-
-        {/* ── PR glance ──────────────────────────────────────────────────── */}
-        <View style={styles.sectionPad}>
-          <Eyebrow style={{ marginBottom: 10 }}>{t('clientHome.personalRecords')}</Eyebrow>
-          {PRS.length > 0 ? (
-            <View style={styles.prGrid}>
-              {PRS.map((p) => (
-                <TouchableOpacity
-                  key={p.lift}
-                  style={styles.prCard}
-                  activeOpacity={0.8}
-                  onPress={() => navigation.navigate('Progress')}
-                >
-                  <Text style={styles.prLift}>{p.lift}</Text>
-                  <View style={styles.prValueRow}>
-                    <Text style={styles.prValue}>{p.current}</Text>
-                    <Text style={styles.prUnit}>{p.unit}</Text>
-                  </View>
-                  {p.history?.length > 0 && (
-                    <View style={{ marginTop: 8 }}>
-                      <Sparkline data={p.history} width={100} height={24} />
-                    </View>
-                  )}
-                  <Text style={[
-                    styles.prDelta,
-                    { color: p.deltaWeek > 0 ? colors.success : colors.textMuted },
-                  ]}>
-                    {p.deltaWeek > 0 ? `+${p.deltaWeek} kg this week` : 'Same as last week'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyCard}>
-              <Ionicons name="trophy-outline" size={24} color={colors.textMuted} style={{ marginBottom: 8 }} />
-              <Text style={styles.emptyCardTitle}>{t('clientHome.noPRs')}</Text>
-              <Text style={styles.emptyCardSub}>{t('clientHome.PRsSub')}</Text>
-            </View>
-          )}
         </View>
 
         <View style={{ height: 24 }} />
@@ -376,12 +443,39 @@ const styles = StyleSheet.create({
   },
 
   // Program strip
-  programStrip: { paddingHorizontal: 20, paddingTop: 12 },
+  programStrip: { paddingHorizontal: 20, paddingTop: 12, gap: 10 },
   programMeta: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   programLabel: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textSecondary },
   programWeek: { fontFamily: 'JetBrainsMono-Regular', fontSize: 12, color: colors.textSecondary },
   progressBarBg: { height: 6, backgroundColor: dark.bg2, borderRadius: 999, overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: colors.accent, borderRadius: 999 },
+
+  weeklyTargetRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  weeklyTargetText: { fontFamily: 'Sora-SemiBold', fontSize: 12, color: colors.textPrimary },
+  weeklyTargetDots: { flexDirection: 'row', gap: 5 },
+  targetDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: dark.bg2, borderWidth: 1, borderColor: dark.line },
+  targetDotFilled: { backgroundColor: colors.accent, borderColor: colors.accent },
+
+  workoutBadgeScrollRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  workoutBadge: {
+    backgroundColor: dark.bg1, borderRadius: 999,
+    borderWidth: 1, borderColor: dark.lineSoft,
+    paddingHorizontal: 12, paddingVertical: 7,
+  },
+  workoutBadgeOpen: { backgroundColor: 'rgba(21,194,203,0.15)', borderColor: colors.accent },
+  workoutBadgeText: { fontFamily: 'Sora-SemiBold', fontSize: 12, color: colors.textPrimary },
+
+  workoutExpandCard: {
+    backgroundColor: dark.bg1, borderRadius: 14,
+    borderWidth: 1, borderColor: dark.lineSoft, padding: 12, gap: 6,
+  },
+  workoutExpandRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  workoutExpandName: { fontFamily: 'Sora-SemiBold', fontSize: 12.5, color: colors.textPrimary },
+  workoutExpandMeta: { fontFamily: 'JetBrainsMono-Regular', fontSize: 11.5, color: colors.textMuted },
+
+  logWorkoutBtn: { borderRadius: 12, overflow: 'hidden', marginTop: 12 },
+  logWorkoutBtnInner: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 10 },
+  logWorkoutBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 13, color: colors.accentInk },
 
   // Section padding
   sectionPad: { paddingHorizontal: 20, paddingTop: 18 },
@@ -391,7 +485,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: dark.bg1,
     borderWidth: 1,
-    borderColor: `rgba(229,57,53,0.35)`,
+    borderColor: `rgba(21, 194, 203,0.35)`,
     overflow: 'hidden',
   },
   heroCardCover: {
@@ -418,6 +512,31 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', gap: 6,
   },
   startBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 15, color: colors.accentInk },
+  heroPlanBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.accent + '15', borderRadius: 10,
+    borderWidth: 1, borderColor: colors.accent + '33',
+    paddingHorizontal: 12, paddingVertical: 8,
+  },
+  heroPlanBtnText: { fontFamily: 'Sora-SemiBold', fontSize: 12.5, color: colors.accent },
+
+  // Next session card
+  nextSessionCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: dark.bg1, borderRadius: 14,
+    borderWidth: 1, borderColor: dark.lineSoft,
+    paddingHorizontal: 14, paddingVertical: 12,
+  },
+  nextSessionIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: colors.accent + '15', alignItems: 'center', justifyContent: 'center',
+  },
+  nextSessionLabel: {
+    fontFamily: 'Sora-SemiBold', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase',
+    color: colors.textMuted,
+  },
+  nextSessionValue: { fontFamily: 'Sora-SemiBold', fontSize: 14, color: colors.textPrimary, marginTop: 2 },
 
   // Card
   card: {
@@ -450,7 +569,7 @@ const styles = StyleSheet.create({
     borderColor: dark.lineSoft,
     alignItems: 'center',
   },
-  weekDayToday: { backgroundColor: `rgba(229,57,53,0.12)`, borderColor: colors.accent },
+  weekDayToday: { backgroundColor: `rgba(21, 194, 203,0.12)`, borderColor: colors.accent },
   weekDayLabel: { fontFamily: 'Sora-SemiBold', fontSize: 9, letterSpacing: 0.5, color: colors.textMuted, textTransform: 'uppercase' },
   weekDayDot: { height: 18, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   weekDotActive: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
@@ -467,7 +586,7 @@ const styles = StyleSheet.create({
   videoTitle: { fontFamily: 'Sora-SemiBold', fontSize: 13, color: colors.textPrimary },
   videoReply: { fontFamily: 'Sora-Regular', fontSize: 12, color: colors.textMuted, marginTop: 2, lineHeight: 17 },
   chipAccent: {
-    backgroundColor: `rgba(229,57,53,0.16)`,
+    backgroundColor: `rgba(21, 194, 203,0.16)`,
     borderRadius: 999,
     paddingHorizontal: 10, paddingVertical: 5,
     alignSelf: 'flex-start',

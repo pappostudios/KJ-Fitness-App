@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0A0A1A"
+      "backgroundColor": "#0D1517"
     },
     "ios": {
       "supportsTablet": false,
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0A1A"
+        "backgroundColor": "#0D1517"
       },
       "package": "com.pappostudios.kjfitness"
     },
@@ -29,6 +29,14 @@
     },
     "plugins": [
       "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#E53935",
+          "sounds": []
+        }
+      ],
       [
         "expo-build-properties",
         {
@@ -52,7 +60,8 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-document-picker"
     ],
     "updates": {
       "url": "https://u.expo.dev/53c02adf-30fb-45b4-970d-ef07931554ae"

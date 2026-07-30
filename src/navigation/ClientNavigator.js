@@ -7,9 +7,10 @@ import { typography } from '../theme/typography';
 
 import ClientHomeNavigator from './ClientHomeNavigator';
 import ClientScheduleScreen from '../screens/client/ClientScheduleScreen';
-import ProgressScreen from '../screens/client/ProgressScreen';
+import ProgressNavigator from './ProgressNavigator';
 import LibraryScreen from '../screens/client/LibraryScreen';
 import MessagesScreen from '../screens/client/MessagesScreen';
+import { useSessionReminders } from '../hooks/useSessionReminders';
 
 const Tab = createBottomTabNavigator();
 
@@ -30,7 +31,7 @@ const TABS = [
   },
   {
     name: 'Progress',
-    component: ProgressScreen,
+    component: ProgressNavigator,
     icon: 'stats-chart',
     iconOutline: 'stats-chart-outline',
     label: 'PROGRESS',
@@ -52,6 +53,9 @@ const TABS = [
 ];
 
 export default function ClientNavigator() {
+  // Schedule on-device 24h/1h reminders for confirmed sessions (clients only).
+  useSessionReminders();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => {
@@ -59,18 +63,23 @@ export default function ClientNavigator() {
         return {
           headerShown: false,
           tabBarStyle: styles.tabBar,
+          tabBarItemStyle: styles.tabItem,
           tabBarActiveTintColor: colors.tabActive,
           tabBarInactiveTintColor: colors.tabInactive,
           tabBarShowLabel: true,
-          tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons
-              name={focused ? tab.icon : tab.iconOutline}
-              size={22}
-              color={color}
-            />
+          tabBarIcon: ({ focused, color }) => (
+            <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+              <Ionicons
+                name={focused ? tab.icon : tab.iconOutline}
+                size={26}
+                color={color}
+              />
+            </View>
           ),
           tabBarLabel: ({ focused, color }) => (
-            <Text style={[styles.tabLabel, { color }]}>{tab.label}</Text>
+            <Text style={[styles.tabLabel, focused && styles.tabLabelActive, { color }]}>
+              {tab.label}
+            </Text>
           ),
           tabBarBadge: tab?.badge || undefined,
           tabBarBadgeStyle: styles.badge,
@@ -93,21 +102,37 @@ const styles = StyleSheet.create({
     backgroundColor: colors.tabBar,
     borderTopColor: colors.tabBarBorder,
     borderTopWidth: 1,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 10,
-    height: Platform.OS === 'ios' ? 82 : 62,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 26 : 12,
+    height: Platform.OS === 'ios' ? 90 : 70,
+  },
+  tabItem: {
+    paddingTop: 2,
+  },
+  iconPill: {
+    width: 56,
+    height: 30,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconPillActive: {
+    backgroundColor: colors.primarySoft,
   },
   tabLabel: {
-    fontFamily: 'Sora-SemiBold',
-    fontSize: 9.5,
-    letterSpacing: 0.8,
+    fontFamily: 'Sora-Bold',
+    fontSize: 10.5,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginTop: 3,
+    marginTop: 4,
+  },
+  tabLabelActive: {
+    fontFamily: 'Sora-ExtraBold',
   },
   badge: {
     backgroundColor: colors.primary,
-    color: '#fff',
+    color: '#04282B',
     fontSize: 10,
-    fontWeight: '700',
+    fontFamily: 'Sora-Bold',
   },
 });

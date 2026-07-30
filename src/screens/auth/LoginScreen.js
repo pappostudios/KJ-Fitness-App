@@ -15,6 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import * as Updates from 'expo-updates';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { colors, gradients, dark } from '../../theme/colors';
@@ -48,7 +49,10 @@ export default function LoginScreen({ navigation }) {
     setGoogleLoading(true);
     try {
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-      await GoogleSignin.signOut(); // clear cached account so picker always shows
+      // Best-effort: clear cached account so the picker always shows.
+      // Non-fatal — if there's no cached session this can throw, and it
+      // must never abort the actual sign-in attempt below.
+      await GoogleSignin.signOut().catch(() => {});
       const userInfo = await GoogleSignin.signIn();
       const idToken = userInfo?.data?.idToken ?? userInfo?.idToken ?? null;
       if (!idToken) return; // cancelled or no token — just stop silently
@@ -100,7 +104,7 @@ export default function LoginScreen({ navigation }) {
         {/* Hero block */}
         <View style={styles.hero}>
           <LinearGradient
-            colors={['rgba(229,57,53,0.18)', 'transparent']}
+            colors={['rgba(21, 194, 203,0.18)', 'transparent']}
             style={StyleSheet.absoluteFillObject}
           />
           <LinearGradient
@@ -242,6 +246,12 @@ export default function LoginScreen({ navigation }) {
               {t('auth.waiver')}
             </Text>.
           </Text>
+
+          <Text style={styles.debugStamp} allowFontScaling={false} selectable>
+            {Updates.isEmbeddedLaunch
+              ? 'DEBUG: embedded build, no OTA update loaded'
+              : `DEBUG: update ${Updates.updateId ?? 'unknown'}`}
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -343,5 +353,9 @@ const styles = StyleSheet.create({
   legal: {
     fontFamily: 'Sora-Regular', fontSize: 11, color: colors.textMuted,
     textAlign: 'center', lineHeight: 16,
+  },
+  debugStamp: {
+    fontFamily: 'JetBrainsMono-Regular', fontSize: 10, color: colors.textMuted,
+    textAlign: 'center', marginTop: 12, opacity: 0.6,
   },
 });

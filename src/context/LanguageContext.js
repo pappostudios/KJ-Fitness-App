@@ -1,10 +1,16 @@
 import React, {
   createContext, useContext, useState, useCallback, useEffect,
 } from 'react';
-import { I18nManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Updates from 'expo-updates';
 import translations from '../i18n/translations';
+
+// Note: this app does NOT use I18nManager.forceRTL() + a full app reload to
+// switch RTL layout direction. Every screen already manually mirrors layout
+// via the `isRTL` flag (icon direction, textAlign, flexDirection, etc.).
+// A forced native reload was previously wired here, but restarting the JS
+// layer while native modules (Firebase Auth, Google Sign-In) don't fully
+// reset caused intermittent logout / sign-in flakiness right after a
+// language switch — so language changes are now purely in-memory.
 
 const LanguageContext = createContext(null);
 
@@ -14,13 +20,7 @@ export function LanguageProvider({ children }) {
 
   useEffect(() => {
     AsyncStorage.getItem('kj_language').then((saved) => {
-      const lang = saved || 'en';
-      setLanguageState(lang);
-      const shouldBeRTL = lang === 'he';
-      if (I18nManager.isRTL !== shouldBeRTL) {
-        I18nManager.forceRTL(shouldBeRTL);
-        Updates.reloadAsync().catch(() => {});
-      }
+      setLanguageState(saved || 'en');
       setReady(true);
     });
   }, []);
@@ -28,11 +28,6 @@ export function LanguageProvider({ children }) {
   const setLanguage = useCallback(async (lang) => {
     await AsyncStorage.setItem('kj_language', lang);
     setLanguageState(lang);
-    const shouldBeRTL = lang === 'he';
-    if (I18nManager.isRTL !== shouldBeRTL) {
-      I18nManager.forceRTL(shouldBeRTL);
-      await Updates.reloadAsync().catch(() => {});
-    }
   }, []);
 
   const t = useCallback((key, params = {}) => {

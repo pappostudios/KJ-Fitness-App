@@ -37,10 +37,16 @@ export function AuthProvider({ children }) {
   const skipAuthHandlerRef = useRef(false);
   // Holds the active Firestore unsub so we can clean it up from anywhere.
   const unsubProfileRef = useRef(null);
+  // Tracks the 12-second safety timer so a second _subscribeToProfile call can clear it.
+  const safetyTimerRef = useRef(null);
 
   // ── Safe sign-out helper ─────────────────────────────────────────────────
   // Resets all local state AND signs out of Firebase.
   const _signOutAndReset = () => {
+    if (safetyTimerRef.current) {
+      clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = null;
+    }
     if (unsubProfileRef.current) {
       unsubProfileRef.current();
       unsubProfileRef.current = null;
@@ -60,18 +66,28 @@ export function AuthProvider({ children }) {
       unsubProfileRef.current = null;
     }
 
-    // Safety net: if Firestore never responds, sign out after 12 s
-    const safetyTimer = setTimeout(() => {
+    // Clear any previous safety timer — prevents the orphaned-timer logout bug
+    // that occurs when _subscribeToProfile is called twice in quick succession
+    // (once from signIn, once from onAuthStateChanged firing after skipAuthHandlerRef resets).
+    if (safetyTimerRef.current) {
+      clearTimeout(safetyTimerRef.current);
+      safetyTimerRef.current = null;
+    }
+
+    // Safety net: if Firestore never responds, sign out after 20 s
+    safetyTimerRef.current = setTimeout(() => {
+      safetyTimerRef.current = null;
       console.warn('[KJAuth] Profile load timed out — signing out');
       if (!skipAuthHandlerRef.current) _signOutAndReset();
       else setLoading(false); // during active sign-in, just unblock
-    }, 12000);
+    }, 20000);
 
     unsubProfileRef.current = onSnapshot(
       doc(db, 'users', uid),
       (snap) => {
         if (snap.exists()) {
-          clearTimeout(safetyTimer);
+          clearTimeout(safetyTimerRef.current);
+          safetyTimerRef.current = null;
           const data = snap.data();
           setProfile(data);
           setRole('client');
@@ -81,7 +97,8 @@ export function AuthProvider({ children }) {
           // Server confirmed: no Firestore profile.
           // This is a ghost Firebase Auth account (failed sign-up in a previous session).
           // Sign out completely so the user lands on the login screen.
-          clearTimeout(safetyTimer);
+          clearTimeout(safetyTimerRef.current);
+          safetyTimerRef.current = null;
           console.warn('[KJAuth] No profile found — signing out ghost account');
           if (!skipAuthHandlerRef.current) {
             _signOutAndReset();
@@ -91,7 +108,8 @@ export function AuthProvider({ children }) {
         // fromCache + no doc: wait for server confirmation (don't act yet).
       },
       (err) => {
-        clearTimeout(safetyTimer);
+        clearTimeout(safetyTimerRef.current);
+        safetyTimerRef.current = null;
         console.warn('[KJAuth] Profile snapshot error:', err.code);
         if (!skipAuthHandlerRef.current) setLoading(false);
       }
@@ -211,39 +229,55 @@ export function AuthProvider({ children }) {
       const { user: googleUser } = await signInWithCredential(auth, credential);
       const email = googleUser.email?.toLowerCase();
 
+      // Firebase Auth has genuinely signed this user in at this point — set
+      // `user` immediately so the UI never has a window where it looks
+      // logged-out while we're still checking Firestore. (Previously this was
+      // set only after the profile fetch below, so a slow/timed-out fetch
+      // left `user` null and bounced the screen back to Login even though
+      // sign-in had actually succeeded.)
+      setUser(googleUser);
+
       // Coaches get straight through — no Firestore needed
       if (COACH_EMAILS.includes(email)) {
-        setUser(googleUser);
         setRole('coach');
         setStatus('approved');
         return;
       }
 
-      // Fetch profile — cache-first so we don't hang on slow networks
-      const snap = await _getDocWithTimeout(doc(db, 'users', googleUser.uid), 8000);
+      // Fetch profile — cache-first so we don't hang on slow networks.
+      // On timeout, don't treat it as failure: fall through to the live
+      // listener below, which will populate role/status as soon as it can
+      // and has its own longer safety timeout for genuinely missing profiles.
+      let snap = null;
+      try {
+        snap = await _getDocWithTimeout(doc(db, 'users', googleUser.uid), 8000);
+      } catch {
+        snap = null;
+      }
 
-      if (!snap.exists() && !createIfNew) {
+      if (snap && !snap.exists() && !createIfNew) {
         // Login attempt but no account found → clean up and tell the user
         await signOut(auth).catch(() => {});
+        setUser(null);
         setError("No account found. Please sign up first.");
         return;
       }
 
-      setUser(googleUser);
-
-      if (!snap.exists()) {
+      if (snap && !snap.exists()) {
         // Sign-up flow: create pending profile
         const name = googleUser.displayName || email.split('@')[0];
         await _createPendingProfile(googleUser.uid, email, name);
         setProfile({ uid: googleUser.uid, name, email, role: 'client', status: 'pending' });
         setRole('client');
         setStatus('pending');
-      } else {
+      } else if (snap) {
         const data = snap.data();
         setProfile(data);
         setRole('client');
         setStatus(data.status);
       }
+      // snap === null means the fetch timed out — role/status stay as-is
+      // and the live listener below fills them in once Firestore responds.
 
       // Subscribe for real-time status updates (e.g. when coach approves)
       _subscribeToProfile(googleUser.uid);
