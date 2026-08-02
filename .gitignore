@@ -36,3 +36,6 @@ android/.idea/
 
 # Firebase CLI local deploy cache
 .firebase/
+
+# Working screenshot captures for the store-screenshot pipeline (scripts/store_screenshots.py)
+raw_screenshots/
