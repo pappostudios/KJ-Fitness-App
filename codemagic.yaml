@@ -4,20 +4,27 @@
 # Codemagic regenerates it with `expo prebuild` at build time from app.json,
 # then builds & signs the .ipa and uploads it to TestFlight.
 #
-# ── One-time setup in the Codemagic UI (Teams ▸ Integrations / App settings) ──
-#   1. App Store Connect API key  → add it under "App Store Connect" integrations
-#      and name it exactly:  KJ Fitness ASC   (matches `integrations` below).
-#   2. Create the app on App Store Connect with bundle id
-#      com.pappostudios.kjfitness  (Codemagic auto-manages the signing cert +
-#      provisioning profile from the API key via `ios_signing` below).
-#   3. (Optional) To let Codemagic pull OTA-friendly builds, add an EXPO_TOKEN
-#      environment variable in a group named `expo`.
+# ── One-time setup in the Codemagic UI ───────────────────────────────────────
+#   1. Add your App Store Connect API key under Team settings ▸ Integrations ▸
+#      App Store Connect. The name you give it there MUST match the
+#      `integrations: app_store_connect:` value below, exactly (case and
+#      spaces included). If you named it something else in the UI, either
+#      rename it there or change the value below to match.
+#   2. Register the App ID `com.pappostudios.kjfitness` in the Apple Developer
+#      portal (Certificates, Identifiers & Profiles ▸ Identifiers), with the
+#      Push Notifications capability enabled.
+#   3. Create the app in App Store Connect ▸ My Apps with that same bundle ID.
+#
+#   Signing is done explicitly in the scripts below (rather than via the
+#   `environment.ios_signing` block) so that the build prints exactly what the
+#   API key can see before it tries to sign. `fetch-signing-files --create`
+#   creates the distribution certificate and provisioning profile if they
+#   don't exist yet, instead of failing with "No matching profiles found".
 #
 # ── Before Google Sign-In works on iOS ───────────────────────────────────────
-#   Verify an *iOS* OAuth client exists in Google Cloud Console for bundle id
-#   com.pappostudios.kjfitness, and that app.json's
-#   `@react-native-google-signin/google-signin` → iosUrlScheme is that client's
-#   REVERSED client id. Email/password sign-in works regardless.
+#   An iOS OAuth client exists in Google Cloud Console for this bundle id, and
+#   app.json's `@react-native-google-signin/google-signin` → iosUrlScheme is
+#   that client's reversed client id. Email/password sign-in works regardless.
 
 workflows:
   ios-appstore:
@@ -25,14 +32,11 @@ workflows:
     max_build_duration: 90
     instance_type: mac_mini_m2
     integrations:
+      # ── MUST match the integration name in the Codemagic UI exactly ──
       app_store_connect: KJ Fitness ASC
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.pappostudios.kjfitness
       vars:
         BUNDLE_ID: "com.pappostudios.kjfitness"
-        XCODE_WORKSPACE: "ios"
       node: 20
       xcode: latest
       cocoapods: default
@@ -43,18 +47,57 @@ workflows:
     scripts:
       - name: Install JS dependencies
         script: npm ci
+
       - name: Expo prebuild (generate native ios/ project)
         script: npx expo prebuild --platform ios --clean --non-interactive
+
       - name: Install CocoaPods dependencies
         script: |
           cd ios && pod install
-      - name: Set up code signing
-        script: xcode-project use-profiles
+
+      # ── Diagnostics ──────────────────────────────────────────────────────
+      # Non-fatal on purpose (|| true): if the API key is missing, lacks
+      # permission, or the bundle ID isn't registered, we want the build to
+      # SAY so here rather than die with a generic profile error later.
+      - name: Diagnose App Store Connect access
+        script: |
+          echo "=== Is the API key present in the environment? ==="
+          if [ -z "${APP_STORE_CONNECT_KEY_IDENTIFIER:-}" ]; then
+            echo "!! APP_STORE_CONNECT_KEY_IDENTIFIER is EMPTY."
+            echo "!! The 'integrations: app_store_connect' name in codemagic.yaml"
+            echo "!! does not match any integration configured in the Codemagic UI."
+          else
+            echo "OK: key id ${APP_STORE_CONNECT_KEY_IDENTIFIER} / issuer ${APP_STORE_CONNECT_ISSUER_ID:-<unset>}"
+          fi
+
+          echo "=== Bundle IDs visible to this key (looking for $BUNDLE_ID) ==="
+          app-store-connect list-bundle-ids --bundle-id-identifier "$BUNDLE_ID" || true
+
+          echo "=== iOS distribution certificates visible to this key ==="
+          app-store-connect list-certificates --type IOS_DISTRIBUTION || true
+
+          echo "=== Existing provisioning profiles for $BUNDLE_ID ==="
+          app-store-connect list-profiles --bundle-id-identifier "$BUNDLE_ID" || true
+
+      # ── Signing ──────────────────────────────────────────────────────────
+      - name: Fetch (and create if missing) signing files
+        script: |
+          set -euo pipefail
+          keychain initialize
+          # --create makes the cert + profile if they don't already exist,
+          # which is what avoids "No matching profiles found".
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+
       - name: Set build number from Codemagic
         script: |
           cd ios
           # TestFlight requires a strictly increasing build number.
           agvtool new-version -all "$BUILD_NUMBER"
+
       - name: Build signed .ipa
         script: |
           set -euo pipefail
